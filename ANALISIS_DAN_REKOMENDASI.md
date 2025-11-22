@@ -21,7 +21,7 @@ Aplikasi POS (Point of Sale) yang sudah cukup lengkap dengan fitur transaksi, in
 - Inventory management
 - Stock calculation
 - Refund process
-- Report generation
+- Report generation YANGAJELAS
 ```
 
 **Contoh Test yang Perlu:**
