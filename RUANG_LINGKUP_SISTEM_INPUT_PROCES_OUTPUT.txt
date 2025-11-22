@@ -1,0 +1,788 @@
+================================================================================
+        RUANG LINGKUP SISTEM TOKO TRIJAYA
+        INPUT - PROSES - OUTPUT
+================================================================================
+
+Dokumen ini menjelaskan cara kerja sistem TOKO_TRIJAYA dalam bentuk
+Input (masukan), Proses (pemrosesan), dan Output (keluaran) untuk setiap
+modul utama dalam sistem.
+
+================================================================================
+1. MODUL TRANSAKSI PENJUALAN (Point of Sale)
+================================================================================
+
+1.1. INPUT (Masukan)
+-------------------
+a. Data User/Kasir:
+   - User ID (dari session authentication)
+   - Nama kasir (otomatis dari user yang login)
+
+b. Data Customer (Opsional):
+   - Customer ID (jika customer sudah terdaftar)
+   - Nama customer baru (jika customer baru)
+   - Nomor telepon customer
+
+c. Data Produk yang Dibeli:
+   - Product Unit ID (ID unit produk yang dipilih)
+   - Product ID (ID produk induk)
+   - Nama produk
+   - Warna produk
+   - Unit name (Pcs, Lusin, Karton, dll)
+   - Quantity (jumlah yang dibeli)
+   - Price (harga jual per unit)
+   - Conversion value (nilai konversi ke base unit)
+   - Subtotal (quantity × price)
+
+d. Data Pembayaran:
+   - Payment method (cash, card, qris)
+   - Cash amount (jumlah uang tunai jika cash)
+   - Discount amount (jumlah diskon total)
+   - Status (unpaid atau paid)
+
+1.2. PROSES (Pemrosesan)
+------------------------
+a. Validasi Input:
+   - Validasi semua field wajib terisi
+   - Validasi format data (numeric, string, dll)
+   - Validasi stok tersedia (cek quantity vs stock)
+   - Validasi uang tunai mencukupi (jika cash)
+
+b. Perhitungan:
+   - Hitung subtotal = sum(quantity × price) untuk semua item
+   - Hitung total amount = subtotal - discount
+   - Hitung change amount = cash_amount - total_amount (jika cash)
+   - Generate transaction code = 'TRX-' + timestamp
+
+c. Handle Customer:
+   - Jika customer baru: Create customer baru di database
+   - Jika customer existing: Update data jika ada perubahan
+   - Simpan customer_id ke transaksi
+
+d. Simpan Transaksi:
+   - Create record di tabel 'transactions'
+   - Create detail transaksi di tabel 'transaction_details'
+   - Set status transaksi (paid/unpaid)
+
+e. Update Stok (jika status = 'paid'):
+   - Decrement stock di product_units sesuai quantity
+   - Create log inventory (type: 'keluar')
+   - Update stok global produk
+
+f. Update Cash Flow (jika status = 'paid'):
+   - Create record CashFlow (flow_type: 'masuk')
+   - Account: 'cash' jika payment_method = 'cash'
+   - Account: 'bank' jika payment_method = 'card' atau 'qris'
+   - Amount = total_amount
+
+g. Update Report (jika status = 'paid'):
+   - Cari atau create Report hari ini (report_type: 'laba_rugi')
+   - Increment total_sales
+   - Increment total_cost (HPP)
+   - Increment profit (total_sales - total_cost)
+   - Increment transaction_count
+   - Increment cash_amount/card_amount/qris_amount sesuai payment_method
+
+h. Hitung HPP (Harga Pokok Penjualan):
+   - Ambil price_buy dari produk
+   - Konversi quantity ke base unit (Pcs)
+   - Total HPP = sum(price_buy × quantity_in_base)
+
+1.3. OUTPUT (Keluaran)
+----------------------
+a. Data Transaksi:
+   - Transaction ID
+   - Transaction Code (contoh: TRX-1234567890)
+   - Total Amount
+   - Discount Amount
+   - Payment Method
+   - Change Amount (jika cash)
+   - Status
+   - Created At (tanggal dan waktu)
+
+b. Struk/Receipt:
+   - Informasi toko
+   - Nomor transaksi
+   - Tanggal dan waktu
+   - Detail produk yang dibeli
+   - Subtotal, diskon, total
+   - Metode pembayaran
+   - Uang tunai dan kembalian (jika cash)
+   - QR Code transaksi
+
+c. Update Database:
+   - Record baru di tabel 'transactions'
+   - Record baru di tabel 'transaction_details'
+   - Update stok di tabel 'product_units'
+   - Record baru di tabel 'inventories' (log stok)
+   - Record baru di tabel 'cash_flows'
+   - Update record di tabel 'reports'
+
+d. Response:
+   - Success message
+   - Redirect ke halaman receipt/struk
+   - JSON response (jika via API)
+
+================================================================================
+2. MODUL PEMBELIAN (PURCHASE)
+================================================================================
+
+2.1. INPUT (Masukan)
+--------------------
+a. Data Supplier:
+   - Supplier ID
+   - Nomor telepon supplier (opsional, untuk update)
+
+b. Data Produk yang Dibeli:
+   - Product ID (array)
+   - Quantity per produk (dalam Pcs/base unit)
+   - Price buy per produk (harga beli per Pcs)
+   - Delivery cost (biaya pengiriman)
+
+c. Data User:
+   - User ID (dari session authentication)
+
+2.2. PROSES (Pemrosesan)
+-------------------------
+a. Validasi Input:
+   - Validasi supplier_id exists
+   - Validasi products array tidak kosong
+   - Validasi quantities dan prices sesuai format
+
+b. Update Supplier:
+   - Update nomor telepon supplier jika diisi
+
+c. Create Purchase:
+   - Generate purchase_code = 'PB-' + timestamp
+   - Create record di tabel 'purchases'
+   - Set status = 'pending'
+
+d. Create Purchase Details:
+   - Loop setiap produk
+   - Hitung subtotal = quantity × price_buy
+   - Create record di tabel 'purchase_details'
+   - Update price_buy di tabel 'products'
+
+e. Hitung Total:
+   - Total amount = sum(subtotal semua produk)
+   - Update total_amount di purchase
+
+f. Update Stok (jika status diubah ke 'completed'):
+   - Find atau create ProductUnit untuk produk
+   - Increment stock di product_units
+   - Create log inventory (type: 'masuk')
+   - Update stok global produk
+
+g. Update Cash Flow (jika status = 'completed'):
+   - Create record CashFlow (flow_type: 'keluar')
+   - Account: 'bank' (asumsi pembelian via transfer)
+   - Amount = total_amount + delivery_cost
+
+h. Kirim Notifikasi:
+   - Kirim pesan WhatsApp ke supplier (jika ada nomor)
+   - Informasi purchase order
+
+2.3. OUTPUT (Keluaran)
+----------------------
+a. Data Purchase:
+   - Purchase ID
+   - Purchase Code (contoh: PB-1234567890)
+   - Supplier ID dan nama
+   - Total Amount
+   - Delivery Cost
+   - Status (pending/completed)
+   - Created At
+
+b. Purchase Details:
+   - List produk yang dibeli
+   - Quantity per produk
+   - Price buy per produk
+   - Subtotal per produk
+
+c. Update Database:
+   - Record baru di tabel 'purchases'
+   - Record baru di tabel 'purchase_details'
+   - Update price_buy di tabel 'products'
+   - Update stock di tabel 'product_units' (jika completed)
+   - Record baru di tabel 'inventories' (jika completed)
+   - Record baru di tabel 'cash_flows' (jika completed)
+
+d. Response:
+   - Success message
+   - Redirect ke halaman purchase index atau edit
+   - Notifikasi WhatsApp ke supplier
+
+================================================================================
+3. MODUL INVENTORI/STOK
+================================================================================
+
+3.1. INPUT (Masukan)
+--------------------
+a. Data Stok Opname:
+   - Product Unit ID
+   - Stok Sistem (stok yang tercatat di sistem)
+   - Stok Fisik (stok hasil penghitungan fisik)
+   - User ID (yang melakukan opname)
+   - Description (keterangan opname)
+
+b. Data Konversi Stok:
+   - Product Unit ID (unit sumber)
+   - Product Unit ID (unit tujuan)
+   - Quantity yang dikonversi
+   - User ID
+
+3.2. PROSES (Pemrosesan)
+-------------------------
+a. Stok Opname:
+   - Hitung selisih = stok_fisik - stok_sistem
+   - Jika selisih > 0: type = 'masuk'
+   - Jika selisih < 0: type = 'keluar'
+   - Update stock di product_units
+   - Create log inventory (type: 'koreksi')
+   - Update stok global produk
+
+b. Konversi Stok:
+   - Validasi stok sumber mencukupi
+   - Hitung konversi berdasarkan conversion_value
+   - Decrement stock unit sumber
+   - Increment stock unit tujuan
+   - Create log inventory untuk unit sumber (type: 'keluar')
+   - Create log inventory untuk unit tujuan (type: 'masuk')
+   - Create record di inventory_conversions
+
+c. Cek Alert Stok:
+   - Cek stok global vs min_stock
+   - Cek stok global vs max_stock
+   - Generate alert jika stok rendah/berlebih
+
+3.3. OUTPUT (Keluaran)
+----------------------
+a. Update Stok:
+   - Stock baru di product_units
+   - Stok global produk terupdate
+
+b. Log Inventory:
+   - Record baru di tabel 'inventories'
+   - Type: masuk/keluar/koreksi
+   - Quantity (positif/negatif)
+   - Description
+   - User ID
+   - Timestamp
+
+c. Alert Notifikasi:
+   - Notifikasi stok rendah (jika < min_stock)
+   - Notifikasi stok berlebih (jika > max_stock)
+
+d. Response:
+   - Success message
+   - Update tampilan stok di halaman inventory
+   - History log stok
+
+================================================================================
+4. MODUL REFUND/PENGEMBALIAN
+================================================================================
+
+4.1. INPUT (Masukan)
+--------------------
+a. Data Transaksi Asal:
+   - Transaction ID (transaksi yang direfund)
+
+b. Data Item yang Direfund:
+   - Transaction Detail ID
+   - Quantity yang direfund (bisa partial)
+   - Alasan refund
+
+c. Data User:
+   - User ID (yang melakukan refund)
+
+4.2. PROSES (Pemrosesan)
+-------------------------
+a. Validasi:
+   - Cek transaksi exists
+   - Cek quantity refund tidak melebihi quantity asal
+   - Validasi alasan refund
+
+b. Hitung Refund:
+   - Hitung total_refund_amount per item
+   - Hitung total_refund_amount keseluruhan
+   - Hitung total_cost_to_return (HPP yang dikembalikan)
+
+c. Create Refund:
+   - Generate refund_code
+   - Create record di tabel 'refunds'
+   - Create detail refund di tabel 'refund_details'
+
+d. Update Stok:
+   - Increment stock di product_units
+   - Create log inventory (type: 'masuk')
+   - Update stok global produk
+
+e. Update Cash Flow:
+   - Create record CashFlow (flow_type: 'keluar')
+   - Account sesuai payment_method transaksi asal
+   - Amount = total_refund_amount
+
+f. Update Report:
+   - Decrement total_sales
+   - Decrement total_cost
+   - Decrement profit
+   - Decrement transaction_count
+   - Decrement cash_amount/card_amount/qris_amount
+
+g. Update Transaksi:
+   - Update status transaksi (jika full refund)
+   - Atau tetap paid (jika partial refund)
+
+4.3. OUTPUT (Keluaran)
+----------------------
+a. Data Refund:
+   - Refund ID
+   - Refund Code
+   - Original Transaction ID
+   - Total Refund Amount
+   - Created At
+
+b. Refund Details:
+   - List produk yang direfund
+   - Quantity per produk
+   - Refund amount per produk
+
+c. Update Database:
+   - Record baru di tabel 'refunds'
+   - Record baru di tabel 'refund_details'
+   - Update stock di tabel 'product_units'
+   - Record baru di tabel 'inventories'
+   - Record baru di tabel 'cash_flows'
+   - Update record di tabel 'reports'
+
+d. Response:
+   - Success message
+   - Redirect ke halaman refund detail
+   - Notifikasi ke customer (jika ada)
+
+================================================================================
+5. MODUL CASH FLOW (ARUS KAS)
+================================================================================
+
+5.1. INPUT (Masukan)
+--------------------
+a. Filter Laporan:
+   - Start Date (tanggal mulai)
+   - End Date (tanggal akhir)
+   - Account (cash/bank)
+   - Flow Type (masuk/keluar)
+   - Source Type (transaction/purchases/add_funds/refunds)
+
+b. Data Add Funds:
+   - Amount (jumlah uang)
+   - Description (keterangan)
+   - User ID
+
+5.2. PROSES (Pemrosesan)
+-------------------------
+a. Query Cash Flow:
+   - Filter berdasarkan tanggal, account, flow_type, source_type
+   - Order by created_at DESC
+   - Pagination (20 per halaman)
+
+b. Hitung Saldo:
+   - Saldo Cash = sum(masuk) - sum(keluar) untuk account='cash'
+   - Saldo Bank = sum(masuk) - sum(keluar) untuk account='bank'
+   - Saldo Filtered = hitung berdasarkan filter yang dipilih
+
+c. Add Funds:
+   - Create record CashFlow
+   - Flow Type: 'masuk'
+   - Account: 'cash'
+   - Source Type: 'add_funds'
+   - Amount = input amount
+
+5.3. OUTPUT (Keluaran)
+----------------------
+a. Daftar Cash Flow:
+   - List semua transaksi kas
+   - Tanggal dan waktu
+   - Flow Type (masuk/keluar)
+   - Account (cash/bank)
+   - Source Type
+   - Amount
+   - Description
+   - User yang melakukan
+
+b. Saldo:
+   - Saldo Kas Tunai Saat Ini
+   - Saldo Bank Saat Ini
+   - Total Masuk (berdasarkan filter)
+   - Total Keluar (berdasarkan filter)
+   - Saldo Akhir (berdasarkan filter)
+
+c. Response:
+   - Tampilan tabel cash flow
+   - Summary saldo
+   - Filter yang aktif
+
+================================================================================
+6. MODUL LAPORAN (REPORTS)
+================================================================================
+
+6.1. INPUT (Masukan)
+--------------------
+a. Filter Laporan Harian:
+   - Start Date (tanggal mulai)
+   - End Date (tanggal akhir)
+   - Type (sales/profit/purchase)
+   - User ID (filter per kasir)
+
+b. Filter Laporan Bulanan:
+   - Month (1-12)
+   - Year (tahun)
+   - Report Type (penjualan/laba_rugi/pembelian)
+
+c. Request Laporan WhatsApp:
+   - Tanggal laporan (default: hari ini)
+   - Nomor telepon owner (dari .env)
+
+6.2. PROSES (Pemrosesan)
+-------------------------
+a. Laporan Harian:
+   - Query Report berdasarkan tanggal dan type
+   - Query Transaction untuk detail produk
+   - Query Refund untuk total refund
+   - Query CashFlow untuk saldo kas
+   - Hitung total_sales, total_cost, profit
+   - Breakdown payment method (cash/card/qris)
+   - Group produk yang terjual
+
+b. Laporan Bulanan:
+   - Query Report berdasarkan bulan dan tahun
+   - Query Transaction untuk detail
+   - Hitung total per bulan
+   - Generate PDF menggunakan DomPDF
+
+c. Laporan WhatsApp:
+   - Query data hari ini
+   - Format pesan WhatsApp
+   - Kirim via WhatsappService (Fonnte API)
+   - Include: total penjualan, produk terjual, laba rugi, saldo kas
+
+d. X Report:
+   - Query transaksi hari ini
+   - Hitung total sales, discount, payment methods
+   - Hitung kas awal (add_funds hari ini)
+   - Create/Update Report (type: 'x')
+
+e. Z Report:
+   - Query transaksi hari ini
+   - Hitung semua summary
+   - Create/Update Report (type: 'z')
+   - Generate PDF
+
+6.3. OUTPUT (Keluaran)
+-----------------------
+a. Laporan Harian (Web):
+   - Tabel transaksi
+   - Summary: total sales, cost, profit
+   - Breakdown payment methods
+   - List produk yang terjual
+   - Total refund
+   - Saldo kas
+
+b. Laporan Bulanan (PDF):
+   - File PDF laporan
+   - Nama file: Laporan-[Type]-[Bulan]-[Tahun].pdf
+   - Isi: data lengkap sesuai type
+
+c. Laporan WhatsApp:
+   - Pesan WhatsApp terkirim ke owner
+   - Format: text dengan emoji
+   - Include semua summary
+
+d. X/Z Report:
+   - Tampilan report di web
+   - PDF report (untuk Z Report)
+   - Record di tabel 'reports'
+
+================================================================================
+7. MODUL PRODUK
+================================================================================
+
+7.1. INPUT (Masukan)
+--------------------
+a. Data Produk:
+   - Nama produk
+   - Type ID (kategori produk)
+   - Color ID (warna produk)
+   - Supplier ID
+   - Price Buy (harga beli)
+   - Description
+   - Image (file gambar)
+   - Min Stock (stok minimum)
+   - Max Stock (stok maksimum)
+
+b. Data Product Unit:
+   - Product ID
+   - Unit Name (Pcs, Lusin, Karton, dll)
+   - Price (harga jual per unit)
+   - Stock (stok awal)
+   - Conversion Value (konversi ke base unit)
+
+7.2. PROSES (Pemrosesan)
+-------------------------
+a. Create Product:
+   - Validasi input
+   - Upload image (jika ada)
+   - Create record di tabel 'products'
+   - Create default ProductUnit (jika belum ada)
+
+b. Create Product Unit:
+   - Validasi product_id exists
+   - Validasi unit_name unique per product
+   - Create record di tabel 'product_units'
+   - Update stok global produk
+
+c. Update Product:
+   - Update field yang diubah
+   - Update image (jika diubah)
+   - Update stok global (jika unit berubah)
+
+d. Delete Product:
+   - Cek apakah ada transaksi menggunakan produk
+   - Soft delete atau hard delete
+   - Update relasi
+
+7.3. OUTPUT (Keluaran)
+----------------------
+a. Data Produk:
+   - Product ID
+   - Semua field produk
+   - List Product Units
+   - Stok global (calculated)
+   - Image URL
+
+b. Update Database:
+   - Record baru/update di tabel 'products'
+   - Record baru/update di tabel 'product_units'
+   - File image di storage
+
+c. Response:
+   - Success message
+   - Redirect ke halaman produk
+   - Tampilan produk dengan stok
+
+================================================================================
+8. MODUL DASHBOARD
+================================================================================
+
+8.1. INPUT (Masukan)
+--------------------
+a. Request Dashboard:
+   - User session (untuk authentication)
+   - Tidak ada input khusus (mengambil data hari ini)
+
+8.2. PROSES (Pemrosesan)
+-------------------------
+a. Query Data Hari Ini:
+   - Query Transaction hari ini
+   - Query Product dengan transaction details
+   - Query Product dengan stok global
+
+b. Hitung Metrics:
+   - Total transaksi hari ini
+   - Total pendapatan hari ini
+   - Total diskon hari ini
+   - Breakdown payment methods
+   - Pendapatan non-cash
+
+c. Analisis Produk:
+   - Produk terlaris (top 5)
+   - Total quantity terjual
+   - Total revenue per produk
+   - Average price per produk
+
+d. Analisis Stok:
+   - Produk dengan stok rendah (low stock)
+   - Produk dengan stok berlebih (overstock)
+   - Filter berdasarkan min_stock dan max_stock
+
+8.3. OUTPUT (Keluaran)
+-----------------------
+a. Dashboard Metrics:
+   - Card: Total Transaksi Hari Ini
+   - Card: Total Pendapatan Hari Ini
+   - Card: Total Diskon Hari Ini
+   - Card: Pendapatan Non-Cash
+
+b. Payment Methods Breakdown:
+   - Total Cash
+   - Total Card
+   - Total QRIS
+
+c. Best Sellers:
+   - Tabel 5 produk terlaris
+   - Nama produk
+   - Quantity terjual
+   - Total revenue
+   - Average price
+
+d. Stock Alerts:
+   - List produk low stock
+   - List produk overstock
+   - Stok saat ini vs min/max
+
+e. Response:
+   - Tampilan dashboard dengan semua data
+   - Update real-time (jika ada)
+
+================================================================================
+9. MODUL AUTHENTICATION & USER MANAGEMENT
+================================================================================
+
+9.1. INPUT (Masukan)
+--------------------
+a. Login:
+   - Username/Email
+   - Password
+
+b. Create User (Owner only):
+   - Name
+   - Username
+   - Email
+   - Password
+   - Role (owner/kasir)
+
+9.2. PROSES (Pemrosesan)
+-------------------------
+a. Login:
+   - Validasi username dan password
+   - Cek user exists dan aktif
+   - Create session
+   - Redirect ke dashboard
+
+b. Create User:
+   - Validasi input
+   - Hash password
+   - Create record di tabel 'users'
+   - Assign role
+
+c. Logout:
+   - Destroy session
+   - Clear authentication
+
+9.3. OUTPUT (Keluaran)
+----------------------
+a. Login:
+   - Session created
+   - Redirect ke dashboard
+   - Error message (jika gagal)
+
+b. Create User:
+   - User ID
+   - User data
+   - Success message
+
+c. Logout:
+   - Session destroyed
+   - Redirect ke login page
+
+================================================================================
+10. ALUR KERJA SISTEM SECARA KESELURUHAN
+================================================================================
+
+10.1. ALUR TRANSAKSI PENJUALAN
+-------------------------------
+INPUT: Data produk, customer, pembayaran
+  ↓
+PROSES: Validasi → Hitung total → Simpan transaksi → Update stok → Update kas → Update laporan
+  ↓
+OUTPUT: Struk transaksi, update database, notifikasi
+
+10.2. ALUR PEMBELIAN
+--------------------
+INPUT: Data supplier, produk, harga beli
+  ↓
+PROSES: Validasi → Create purchase → Update harga beli → Update stok (jika completed) → Update kas → Notifikasi supplier
+  ↓
+OUTPUT: Purchase order, update database, notifikasi WhatsApp
+
+10.3. ALUR REFUND
+-----------------
+INPUT: Data transaksi asal, item yang direfund
+  ↓
+PROSES: Validasi → Hitung refund → Update stok → Update kas → Update laporan
+  ↓
+OUTPUT: Refund record, update database, notifikasi
+
+10.4. ALUR LAPORAN HARIAN
+-------------------------
+INPUT: Filter tanggal, type, kasir
+  ↓
+PROSES: Query data → Hitung summary → Format data → Generate view/PDF
+  ↓
+OUTPUT: Laporan web/PDF, data lengkap
+
+10.5. ALUR LAPORAN WHATSAPP (OTOMATIS)
+--------------------------------------
+INPUT: Tanggal (default: hari ini), nomor owner
+  ↓
+PROSES: Query data hari ini → Format pesan → Kirim via API
+  ↓
+OUTPUT: Pesan WhatsApp terkirim, log aktivitas
+
+================================================================================
+11. DATABASE RELATIONSHIPS
+================================================================================
+
+11.1. RELASI UTAMA:
+------------------
+- Product → ProductUnit (1 to many)
+- Product → ProductType (many to 1)
+- Product → ProductColor (many to 1)
+- Product → Supplier (many to 1)
+- Transaction → TransactionDetail (1 to many)
+- Transaction → User (many to 1)
+- Transaction → Customer (many to 1)
+- Transaction → Refund (1 to many)
+- Purchase → PurchaseDetail (1 to many)
+- Purchase → Supplier (many to 1)
+- Purchase → User (many to 1)
+- Inventory → Product (many to 1)
+- Inventory → ProductUnit (many to 1)
+- Inventory → User (many to 1)
+- CashFlow → Transaction (many to 1)
+- CashFlow → Purchase (many to 1)
+- CashFlow → User (many to 1)
+- Report → User (many to 1)
+
+11.2. FLOW DATA:
+----------------
+Transaksi → Update Stok → Update Kas → Update Laporan
+Pembelian → Update Stok → Update Kas → Update Harga Beli
+Refund → Update Stok → Update Kas → Update Laporan (reverse)
+
+================================================================================
+12. KESIMPULAN
+================================================================================
+
+Sistem TOKO_TRIJAYA bekerja dengan alur:
+
+1. INPUT: User memasukkan data melalui form/web interface
+2. PROSES: Sistem melakukan validasi, perhitungan, dan update database
+3. OUTPUT: Sistem menghasilkan output berupa:
+   - Update database
+   - Tampilan data di web
+   - File PDF (untuk laporan)
+   - Notifikasi WhatsApp
+   - Struk/Receipt
+
+Setiap modul saling terintegrasi:
+- Transaksi mempengaruhi Stok, Kas, dan Laporan
+- Pembelian mempengaruhi Stok, Kas, dan Harga Beli
+- Refund mempengaruhi Stok, Kas, dan Laporan (reverse)
+- Semua aktivitas tercatat di Inventory Log dan Cash Flow
+
+Sistem menggunakan database transaction untuk memastikan konsistensi data
+dan rollback jika terjadi error.
+
+================================================================================
+                        END OF DOCUMENT
+================================================================================
+
