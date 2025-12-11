@@ -1,18 +1,37 @@
 <!-- Web Application Manifest -->
-<link rel="manifest" href="{{ route('laravelpwa.manifest') }}">
+@php
+    try {
+        $manifestUrl = route('laravelpwa.manifest');
+    } catch (\Exception $e) {
+        // Gunakan path dengan subfolder
+        $manifestUrl = url('toko_trijaya/public/manifest.json');
+    }
+    // Pakai HTTPS hanya jika situsnya sudah diakses via HTTPS/production
+    $forceHttps = request()->isSecure() || app()->environment('production');
+    if ($forceHttps && strpos($manifestUrl, 'http://') === 0) {
+        $manifestUrl = str_replace('http://', 'https://', $manifestUrl);
+    }
+@endphp
+<link rel="manifest" href="{{ $manifestUrl }}">
 <!-- Chrome for Android theme color -->
 <meta name="theme-color" content="{{ $config['theme_color'] }}">
 
 <!-- Add to homescreen for Chrome on Android -->
 <meta name="mobile-web-app-capable" content="{{ $config['display'] == 'standalone' ? 'yes' : 'no' }}">
 <meta name="application-name" content="{{ $config['short_name'] }}">
-<link rel="icon" sizes="{{ data_get(end($config['icons']), 'sizes') }}" href="{{ data_get(end($config['icons']), 'src') }}">
+@php
+    $lastIcon = end($config['icons']);
+    $iconPath = $lastIcon['path'] ?? '';
+    // Gunakan secure_asset untuk memastikan path benar dan HTTPS
+    $iconUrl = $iconPath ? secure_asset($iconPath) : '';
+@endphp
+<link rel="icon" sizes="{{ data_get($lastIcon, 'sizes') }}" href="{{ $iconUrl }}">
 
 <!-- Add to homescreen for Safari on iOS -->
 <meta name="apple-mobile-web-app-capable" content="{{ $config['display'] == 'standalone' ? 'yes' : 'no' }}">
 <meta name="apple-mobile-web-app-status-bar-style" content="{{  $config['status_bar'] }}">
 <meta name="apple-mobile-web-app-title" content="{{ $config['short_name'] }}">
-<link rel="apple-touch-icon" href="{{ data_get(end($config['icons']), 'src') }}">
+<link rel="apple-touch-icon" href="{{ $iconUrl }}">
 
 
 <link href="{{ $config['splash']['640x1136'] }}" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)" rel="apple-touch-startup-image" />
@@ -31,16 +50,67 @@
 <meta name="msapplication-TileImage" content="{{ data_get(end($config['icons']), 'src') }}">
 
 <script type="text/javascript">
-    // Initialize the service worker
+    // Initialize the service worker dengan error handling yang lebih baik
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/serviceworker.js', {
-            scope: '.'
-        }).then(function (registration) {
-            // Registration was successful
-            console.log('Laravel PWA: ServiceWorker registration successful with scope: ', registration.scope);
-        }, function (err) {
-            // registration failed :(
-            console.log('Laravel PWA: ServiceWorker registration failed: ', err);
+        window.addEventListener('load', function() {
+            // Gunakan path relatif dari root domain, bukan subfolder
+            var swPath = '{{ secure_asset("serviceworker.js") }}';
+            // Jika asset() return full URL, ambil path saja
+            if (swPath.startsWith('http')) {
+                var url = new URL(swPath);
+                swPath = url.pathname;
+            }
+
+            console.log('🔄 Attempting to register service worker from:', swPath);
+
+            // Deteksi scope berdasarkan path aplikasi
+            // Jika service worker di /toko_trijaya/public/serviceworker.js
+            // Maka scope harus /toko_trijaya/public/ atau lebih spesifik
+            var basePath = swPath.substring(0, swPath.lastIndexOf('/') + 1);
+            var scope = basePath || '/';
+
+            console.log('📍 Detected base path:', basePath);
+            console.log('📍 Using scope:', scope);
+
+            navigator.serviceWorker.register(swPath, {
+                scope: scope
+            }).then(function (registration) {
+                // Registration was successful
+                console.log('✅ Laravel PWA: ServiceWorker registration successful');
+                console.log('Scope:', registration.scope);
+                console.log('Registration:', registration);
+
+                // Check for updates
+                registration.addEventListener('updatefound', function() {
+                    console.log('🔄 Service Worker update found');
+                });
+
+                // Check registration state
+                if (registration.installing) {
+                    console.log('📥 Service Worker installing...');
+                } else if (registration.waiting) {
+                    console.log('⏳ Service Worker waiting...');
+                } else if (registration.active) {
+                    console.log('✅ Service Worker active');
+                }
+            }, function (err) {
+                // registration failed
+                console.error('❌ Laravel PWA: ServiceWorker registration failed:', err);
+                console.error('Error details:', err.message, err.stack);
+            });
+
+            // Check if service worker is already registered
+            navigator.serviceWorker.getRegistration().then(function(registration) {
+                if (registration) {
+                    console.log('✅ Service Worker already registered:', registration.scope);
+                } else {
+                    console.log('⚠️ Service Worker not registered yet');
+                }
+            }).catch(function(err) {
+                console.error('❌ Error checking service worker registration:', err);
+            });
         });
+    } else {
+        console.warn('⚠️ Service Worker not supported in this browser');
     }
 </script>

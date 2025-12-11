@@ -1,14 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    @laravelPWA
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
+    <meta name="theme-color" content="#0D6EFD">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Trijaya">
+
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('images/icons/icon-192x192.png') }}">
+    <link rel="icon" type="image/png" sizes="96x96" href="{{ asset('images/icons/icon-96x96.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/icons/icon-192x192.png') }}">
+
+    <!-- Manifest Link -->
+    <link rel="manifest" href="/manifest.json">
 
 
     <title>Toko Trijaya - @yield('title')</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="user-id" content="{{ auth()->id() }}">
-    <script src="{{ asset('js/idb-keyval.min.js') }}"></script>
+    <script src="{{ secure_asset('js/idb-keyval.min.js') }}"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.css" rel="stylesheet">
@@ -95,9 +110,19 @@
                 transform: translateX(0);
                 box-shadow: 5px 0 15px rgba(0, 0, 0, 0.2);
             }
+
+            .navbar {
+                position: sticky !important;
+                top: 0 !important;
+                z-index: 999 !important;
+                background: white !important;
+            }
+
+            .navbar-brand {
+                font-size: 1.1rem !important;
+            }
         }
 
-        /* Rest of your existing styles remain the same */
         .toggle-btn {
             cursor: pointer;
             font-size: 1.5rem;
@@ -425,6 +450,9 @@
                         <li class="nav-item animate__animated animate__fadeInLeft" style="animation-delay: 0.5s;">
                             <a class="nav-link {{ request()->is('inventories*') ? 'active' : '' }}" href="{{ route('inventories.index') }}">
                                 <i class="bi bi-box-seam me-2"></i> Inventory Produk
+                                @if(isset($inventoryAlertCount) && $inventoryAlertCount > 0)
+                                    <span class="badge bg-danger ms-2">{{ $inventoryAlertCount }}</span>
+                                @endif
                             </a>
                         </li>
                     @else
@@ -463,6 +491,9 @@
                         <li class="nav-item animate__animated animate__fadeInLeft" style="animation-delay: 0.5s;">
                             <a class="nav-link {{ request()->is('inventories*') ? 'active' : '' }}" href="{{ route('inventories.index') }}">
                                 <i class="bi bi-box-seam me-2"></i> Inventory Produk
+                                @if(isset($inventoryAlertCount) && $inventoryAlertCount > 0)
+                                    <span class="badge bg-danger ms-2">{{ $inventoryAlertCount }}</span>
+                                @endif
                             </a>
                         </li>
 
@@ -502,10 +533,13 @@
 
         <!-- Main Content -->
         <div class="main-content" id="mainContent">
-            <nav class="navbar navbar-expand-md navbar-light shadow-sm">
+            <nav class="navbar navbar-expand-md navbar-light shadow-sm" style="position: sticky; top: 0; z-index: 999; background: white !important;">
                 <div class="container-fluid">
                     <div class="d-flex align-items-center">
                         <div class="toggle-btn me-3 d-none d-md-block animate__animated animate__fadeIn" id="sidebarCollapse">
+                            <i class="bi bi-list"></i>
+                        </div>
+                        <div class="toggle-btn me-3 d-md-none animate__animated animate__fadeIn" id="sidebarCollapseMobileNav" style="color: #333;">
                             <i class="bi bi-list"></i>
                         </div>
                         <span class="navbar-brand mb-0 h1 animate__animated animate__fadeIn">@yield('title')</span>
@@ -523,14 +557,12 @@
             </nav>
 
             <div class="content-container">
-                {{-- TAMBAHKAN INI UNTUK MENANGKAP REDIRECT DARI AJAX/PWA --}}
                 @if(request()->has('success'))
                     <div class="alert alert-success animate__animated animate__fadeInDown">
                         <i class="bi bi-check-circle-fill me-2"></i> Transaksi berhasil disimpan!
                     </div>
                 @endif
 
-                {{-- INI KODE LAMA ANDA (BIARKAN SAJA) UNTUK FORM NON-AJAX --}}
                 @if(session('success'))
                     <div class="alert alert-success animate__animated animate__fadeInDown">
                         <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
@@ -615,7 +647,7 @@
     <script src="https://cdn.jsdelivr.net/npm/idb@7/build/umd.js"></script>
 
     <!-- Helper kita (akan kita buat di Langkah 2) -->
-    <script src="{{ asset('js/idb-helper.js') }}"></script>
+    <script src="{{ secure_asset('js/idb-helper.js') }}"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
@@ -634,10 +666,20 @@
                 toggleSidebar();
             });
 
-            // Toggle sidebar untuk mobile
-            sidebarCollapseMobile.addEventListener('click', function() {
-                sidebar.classList.remove('sidebar-show');
-            });
+            // Toggle sidebar untuk mobile (dari sidebar)
+            if (sidebarCollapseMobile) {
+                sidebarCollapseMobile.addEventListener('click', function() {
+                    sidebar.classList.remove('sidebar-show');
+                });
+            }
+
+            // Toggle sidebar untuk mobile (dari navbar)
+            const sidebarCollapseMobileNav = document.getElementById('sidebarCollapseMobileNav');
+            if (sidebarCollapseMobileNav) {
+                sidebarCollapseMobileNav.addEventListener('click', function() {
+                    sidebar.classList.toggle('sidebar-show');
+                });
+            }
 
             // Back to top button
             window.addEventListener('scroll', function() {
@@ -720,6 +762,37 @@
     @stack('scripts')
 
     <!-- PWA Enhancements Script -->
-    <script src="{{ asset('js/pwa-enhancements.js') }}"></script>
+    <script src="{{ secure_asset('js/pwa-enhancements.js') }}"></script>
+
+    {{-- Service Worker Registration (Fallback jika @laravelPWA tidak load) --}}
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                var swPath = '{{ secure_asset("serviceworker.js") }}';
+                // Extract pathname if full URL
+                if (swPath.startsWith('http')) {
+                    var url = new URL(swPath);
+                    swPath = url.pathname;
+                }
+
+                console.log('🔄 [Layout] Registering service worker from:', swPath);
+
+                // Deteksi scope berdasarkan path aplikasi
+                var basePath = swPath.substring(0, swPath.lastIndexOf('/') + 1);
+                var scope = basePath || '/';
+
+                console.log('📍 [Layout] Detected base path:', basePath);
+                console.log('📍 [Layout] Using scope:', scope);
+
+                navigator.serviceWorker.register(swPath, {
+                    scope: scope
+                }).then(function(registration) {
+                    console.log('✅ [Layout] Service Worker registered:', registration.scope);
+                }).catch(function(error) {
+                    console.error('❌ [Layout] Service Worker registration failed:', error);
+                });
+            });
+        }
+    </script>
 </body>
 </html>

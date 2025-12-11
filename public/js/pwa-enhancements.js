@@ -15,8 +15,8 @@
     const dismissInstallButton = document.getElementById('pwa-dismiss-install');
 
     // Check if app is already installed
-    const isInstalled = window.matchMedia('(display-mode: standalone)').matches || 
-                       window.navigator.standalone || 
+    const isInstalled = window.matchMedia('(display-mode: standalone)').matches ||
+                       window.navigator.standalone ||
                        document.referrer.includes('android-app://');
 
     // Listen for beforeinstallprompt event
@@ -25,7 +25,7 @@
         e.preventDefault();
         // Stash the event so it can be triggered later
         deferredPrompt = e;
-        
+
         // Show custom install banner if not installed
         if (!isInstalled && installBanner) {
             // Check if user has dismissed before (localStorage)
@@ -50,7 +50,6 @@
             const { outcome } = await deferredPrompt.userChoice;
 
             if (outcome === 'accepted') {
-                console.log('User accepted the install prompt');
                 // Hide banner
                 if (installBanner) {
                     installBanner.style.display = 'none';
@@ -62,13 +61,11 @@
                         'event_label': 'Install Accepted'
                     });
                 }
-            } else {
-                console.log('User dismissed the install prompt');
             }
 
             // Clear the deferredPrompt
             deferredPrompt = null;
-            
+
             // Hide banner
             if (installBanner) {
                 installBanner.style.display = 'none';
@@ -121,7 +118,6 @@
         // Listen for messages from service worker
         navigator.serviceWorker.addEventListener('message', event => {
             if (event.data && event.data.type === 'SW_UPDATED') {
-                console.log('Service Worker updated to version:', event.data.version);
                 // Show update notification
                 if (updateBanner) {
                     updateBanner.style.display = 'block';
@@ -152,8 +148,9 @@
             });
         }
 
-        // Check for updates periodically (every 1 hour)
-        setInterval(() => {
+        // Check for updates only on page load and when user becomes online
+        // Removed periodic check to reduce resource usage
+        window.addEventListener('online', () => {
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.getRegistration().then(registration => {
                     if (registration) {
@@ -161,14 +158,14 @@
                     }
                 });
             }
-        }, 60 * 60 * 1000); // 1 hour
+        });
     }
 
     // ============================================
     // 3. OFFLINE STATUS INDICATOR
     // ============================================
     const offlineIndicator = document.getElementById('pwa-offline-indicator');
-    
+
     function updateOnlineStatus() {
         if (offlineIndicator) {
             if (navigator.onLine) {
@@ -213,16 +210,16 @@
     // 4. SYNC STATUS INDICATOR
     // ============================================
     const syncIndicator = document.getElementById('pwa-sync-indicator');
-    
-    // Check sync status from IndexedDB
+
+    // Check sync status from IndexedDB (only when needed, not periodically)
     async function checkSyncStatus() {
         if (!syncIndicator) return;
-        
+
         try {
             const { get, createStore } = idbKeyval;
             const transactionStore = createStore('toko-trijaya-db', 'pending-transactions');
             const pendingTransactions = await get('pending-transactions', transactionStore) || [];
-            
+
             if (pendingTransactions.length > 0) {
                 syncIndicator.style.display = 'block';
                 syncIndicator.textContent = `${pendingTransactions.length} transaksi menunggu sinkronisasi`;
@@ -230,24 +227,20 @@
                 syncIndicator.style.display = 'none';
             }
         } catch (error) {
-            console.error('Error checking sync status:', error);
+            // Silently fail to reduce console noise
         }
     }
 
-    // Check sync status every 5 seconds
-    setInterval(checkSyncStatus, 5000);
+    // Check sync status only on page load and when coming back online
     checkSyncStatus(); // Initial check
+    window.addEventListener('online', checkSyncStatus);
 
     // ============================================
     // 5. REQUEST NOTIFICATION PERMISSION
     // ============================================
     function requestNotificationPermission() {
         if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
-                    console.log('Notification permission granted');
-                }
-            });
+            Notification.requestPermission();
         }
     }
 
@@ -268,12 +261,9 @@
     }
 
     // ============================================
-    // 7. CONSOLE LOG FOR DEBUGGING
+    // 7. CONSOLE LOG FOR DEBUGGING (removed for production)
     // ============================================
-    console.log('PWA Enhancements loaded');
-    console.log('PWA Installed:', isInstalled);
-    console.log('Service Worker Support:', 'serviceWorker' in navigator);
-    console.log('Notification Support:', 'Notification' in window);
-    
+    // Removed console logs to reduce resource usage
+
 })();
 

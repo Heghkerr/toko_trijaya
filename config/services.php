@@ -31,4 +31,9 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'chatbot' => [
+        'receiver_phone' => env('CHATBOT_RECEIVER_PHONE', '085931324084'),
+        'owner_phone' => env('OWNER_PHONE'),
+    ],
+
 ];

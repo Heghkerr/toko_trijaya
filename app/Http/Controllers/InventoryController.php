@@ -23,28 +23,51 @@ class InventoryController extends Controller
             'color_id'=> 'nullable|integer|exists:product_colors,id',
             'unit_name'=> 'nullable|string|exists:product_units,name'
         ]);
-        $query = ProductUnit::with(['product.type', 'product.color', 'inventories.user']);
-        if ($request->filled('type_id') || $request->filled('search') || $request->filled('color_id')) {
-            $query->whereHas('product', function ($q) use ($request){
-                if ($request->filled('type_id')) {
-                    $q->where('type_id', $request->type_id);
-                }
-                if ($request->filled('search')) {
-                    $q->where('name', 'like', '%' . $request->search . '%');
-                }
-                if ($request->filled('color_id')) {
-                    $q->where('color_id', $request->color_id);
-                }
-            });
+        $globalStockSubQuery = "(SELECT COALESCE(SUM(pu2.stock * pu2.conversion_value), 0)
+            FROM product_units AS pu2
+            WHERE pu2.product_id = product_units.product_id)";
+
+        $stockPriorityCase = "CASE
+            WHEN products.min_stock IS NOT NULL AND {$globalStockSubQuery} <= products.min_stock THEN 0
+            WHEN products.max_stock IS NOT NULL AND {$globalStockSubQuery} >= products.max_stock THEN 1
+            ELSE 2
+        END";
+
+        $stockStatusCase = "CASE
+            WHEN products.min_stock IS NOT NULL AND {$globalStockSubQuery} <= products.min_stock THEN 'understock'
+            WHEN products.max_stock IS NOT NULL AND {$globalStockSubQuery} >= products.max_stock THEN 'overstock'
+            ELSE 'normal'
+        END";
+
+        $query = ProductUnit::with([
+                'product.type',
+                'product.color',
+                'inventories.user'
+            ])
+            ->select('product_units.*')
+            ->selectRaw("{$globalStockSubQuery} AS global_stock_total")
+            ->selectRaw("{$stockPriorityCase} AS stock_priority")
+            ->selectRaw("{$stockStatusCase} AS stock_status")
+            ->leftJoin('products', 'product_units.product_id', '=', 'products.id');
+
+        if ($request->filled('type_id')) {
+            $query->where('products.type_id', $request->type_id);
+        }
+        if ($request->filled('search')) {
+            $query->where('products.name', 'like', '%' . $request->search . '%');
+        }
+        if ($request->filled('color_id')) {
+            $query->where('products.color_id', $request->color_id);
         }
         if ($request->filled('unit_name')) {
-            $query->where('name', $request->unit_name);
+            $query->where('product_units.name', $request->unit_name);
         }
-        $productUnits = $query->orderBy(
-            Product::select('name')->whereColumn('products.id', 'product_units.product_id')
-        )
-        ->paginate(50)
-        ->withQueryString();
+
+        $productUnits = $query->orderBy('stock_priority')
+            ->orderBy('products.name')
+            ->orderBy('product_units.name')
+            ->paginate(50)
+            ->withQueryString();
         $productTypes = ProductType::orderBy('name', 'asc')->get();
         $productColors = ProductColor::orderBy('name', 'asc')->get();;
         $unitNames = ProductUnit::distinct()
@@ -67,6 +90,12 @@ class InventoryController extends Controller
     {
         $productUnit->load('product.color', 'product.type', 'inventories.user');
         return view('inventories.show', ['unit' => $productUnit]);
+    }
+
+    public function publicShow(ProductUnit $productUnit)
+    {
+        $productUnit->load('product.color', 'product.type');
+        return view('products.public-show', ['unit' => $productUnit]);
     }
 
     public function opname(Request $request)

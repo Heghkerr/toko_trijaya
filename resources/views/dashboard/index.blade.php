@@ -6,7 +6,7 @@
 
 
 {{-- === BAGIAN BARU: ALERT STOK MENIPIS (Hanya muncul jika ada data) === --}}
-@if(auth()->user()->role === 'owner')
+@if(in_array(auth()->user()->role, ['owner', 'admin']))
     @if(isset($low_stock_products) && count($low_stock_products) > 0)
     <div class="row mb-4">
         <div class="col-12">
@@ -24,7 +24,7 @@
                             <div>
                                 @foreach($low_stock_products as $product)
                                     <span class="badge bg-danger text-white mr-2 mb-1 p-2">
-                                        {{ $product->name }}
+                                        {{ $product->name }} - {{  ($product->color->name ?? '')}}
                                         (Sisa: {{ $product->current_global_stock }})
                                     </span>
                                 @endforeach
@@ -57,7 +57,7 @@
                                 @foreach($over_stock_products as $product)
                                     {{-- Text-dark agar tulisan di background kuning terbaca jelas --}}
                                     <span class="badge bg-warning text-dark mr-2 mb-1 p-2">
-                                        {{ $product->name }}
+                                        {{ $product->name }} - {{  ($product->color->name ?? '')}}
                                         (Total: {{ $product->current_global_stock }})
                                     </span>
                                 @endforeach
@@ -197,7 +197,16 @@
                             @foreach($best_sellers as $index => $product)
                                 <tr>
                                     <td>{{  $index + 1 }}</td>
-                                    <td>{{ $product['name'] }}</td>
+                                    <td>
+                                        <span class="product-name
+                                            @if(isset($product['stock_status']))
+                                                @if($product['stock_status'] === 'understock') text-danger fw-bold
+                                                @elseif($product['stock_status'] === 'overstock') text-warning fw-bold
+                                                @endif
+                                            @endif">
+                                            {{ $product['name'] }}
+                                        </span>
+                                    </td>
                                     <td class="text-end">Rp {{ number_format($product['price'], 0, ',', '.') }}</td>
                                     <td class="text-end">Rp {{ number_format($product['average_price'], 0, ',', '.') }}</td>
                                     <td class="text-end">{{ $product['sold'] }}</td>
@@ -244,7 +253,7 @@
                                 <td>Total Refund</td>
                                 <td class="text-end text-danger">- Rp {{ number_format($today_refund ?? 0, 0, ',', '.') }}</td>
                             </tr>
-                            
+
                             <tr class="table-success">
                                 <th>Total Pendapatan Bersih (Setelah Diskon & Refund)</th>
                                 <th class="text-end">Rp {{ number_format($net_income ?? ($today_income - ($today_refund ?? 0)), 0, ',', '.') }}</th>
@@ -305,6 +314,7 @@ document.addEventListener('DOMContentLoaded', function() {
     .table-success { background-color: rgba(40,167,69,0.1); }
     .text-success { color: #28a745 !important; }
     .text-danger { color: #dc3545 !important; }
+    .text-warning { color: #ffc107 !important; }
     .card-header { border-bottom: 1px solid rgba(0,0,0,0.125); }
     .shadow { box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15) !important; }
     .border-left-primary { border-left: 0.25rem solid #4e73df !important; }
@@ -313,6 +323,15 @@ document.addEventListener('DOMContentLoaded', function() {
     .border-left-danger { border-left: 0.25rem solid #dc3545 !important; }
     .text-xs { font-size: 0.7rem; }
     .text-uppercase { letter-spacing: 0.1em; }
+    /* Style untuk product name dengan warna */
+    .product-name.text-danger {
+        color: #dc3545 !important;
+        font-weight: 600;
+    }
+    .product-name.text-warning {
+        color: #f39c12 !important;
+        font-weight: 600;
+    }
 </style>
 @endsection
 @endsection

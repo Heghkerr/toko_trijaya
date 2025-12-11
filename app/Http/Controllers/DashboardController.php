@@ -37,7 +37,8 @@ class DashboardController extends Controller
         $netIncome = $todayIncome - $todayRefund;
 
         // Produk terlaris dengan perhitungan diskon
-        $bestSellers = Product::with(['transactionDetails' => function($query) use ($utcStart, $utcEnd) {
+        $bestSellers = Product::withGlobalStock() // Load global stock untuk cek status
+            ->with(['transactionDetails' => function($query) use ($utcStart, $utcEnd) {
                 $query->whereHas('transaction', function($q) use ($utcStart, $utcEnd) {
                     $q->whereBetween('created_at', [$utcStart, $utcEnd]);
                 });
@@ -49,13 +50,26 @@ class DashboardController extends Controller
                     return ($detail->price * $detail->quantity) - ($detail->discount ?? 0);
                 });
 
+                // Hitung global stock
+                $globalStock = $product->current_global_stock;
+                
+                // Tentukan status stock untuk warna
+                $stockStatus = 'normal'; // default
+                if ($product->min_stock !== null && $globalStock <= $product->min_stock) {
+                    $stockStatus = 'understock'; // Merah
+                } elseif ($product->max_stock !== null && $globalStock >= $product->max_stock) {
+                    $stockStatus = 'overstock'; // Orange/Warning
+                }
+
                 return [
                     'id' => $product->id,
                     'name' => $product->name,
                     'price' => $product->price,
                     'sold' => $totalSold,
                     'total_revenue' => $totalRevenue,
-                    'average_price' => $totalSold > 0 ? $totalRevenue / $totalSold : $product->price
+                    'average_price' => $totalSold > 0 ? $totalRevenue / $totalSold : $product->price,
+                    'stock_status' => $stockStatus, // Tambahkan status untuk warna
+                    'global_stock' => $globalStock
                 ];
             })
             ->sortByDesc('total_revenue')

@@ -2,8 +2,7 @@
 
 namespace App\Http\Controllers;
 
-// ... Hapus import Request yang lama jika ada
-use Illuminate\Http\Request; // PASTIKAN ADA IMPORT INI
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Product;
 use App\Models\Supplier;
@@ -12,7 +11,7 @@ use App\Models\PurchaseReturnDetail;
 use App\Models\Inventory;
 use App\Models\CashFlow;
 use App\Models\ProductUnit;
-use App\Models\Purchase; // TAMBAHKAN IMPORT PURCHASE
+use App\Models\Purchase;
 use Illuminate\Support\Facades\Auth;
 
 class PurchaseReturnController extends Controller
@@ -31,9 +30,8 @@ class PurchaseReturnController extends Controller
 
     /**
      * Menampilkan form untuk membuat retur baru.
-     * MODIFIKASI: Terima Request $request
      */
-    public function create(Request $request) // MODIFIKASI
+    public function create(Request $request)
     {
         $purchase = null;
         $purchaseProducts = [];

@@ -7,9 +7,12 @@ return [
         // 👇 UBAH INI
         'name' => 'Toko Trijaya',
         'short_name' => 'Trijaya',
+        'description' => 'Aplikasi Point of Sale Toko Trijaya',
 
         // 👇 UBAH INI
-        'start_url' => '/dashboard',
+        'start_url' => '/login',
+        'scope' => '/',
+        'id' => '/',
         'background_color' => '#ffffff',
 
         // 👇 UBAH INI (sesuaikan dengan warna tema Anda, cth: biru)
@@ -18,6 +21,10 @@ return [
         'orientation'=> 'any',
         'status_bar'=> 'black',
         'icons' => [
+            '48x48' => [
+                'path' => '/images/icons/icon-48x48.png',
+                'purpose' => 'any'
+            ],
             '72x72' => [
                 'path' => '/images/icons/icon-72x72.png',
                 'purpose' => 'any'
@@ -104,6 +111,10 @@ return [
             ]
         ],
 
-        'custom' => []
+        'custom' => [
+            'description' => 'Aplikasi Point of Sale Toko Trijaya',
+            'lang' => 'id',
+            'dir' => 'ltr'
+        ]
     ]
 ];

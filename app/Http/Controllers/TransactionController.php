@@ -70,30 +70,39 @@ class TransactionController extends Controller
 
         $query = ProductUnit::with(['product.type', 'product.color']);
 
-        if ($request->has('type_id') && $request->type_id) {
-            $query->whereHas('product', function ($q) use ($request){
-                $q->where('type_id', $request->type_id);
+        // Hanya tampilkan produk jika ada search atau filter
+        $hasFilter = $request->filled('search') || ($request->has('type_id') && $request->type_id) || ($request->filled('color_id'));
+
+        if ($hasFilter) {
+            if ($request->has('type_id') && $request->type_id) {
+                $query->whereHas('product', function ($q) use ($request){
+                    $q->where('type_id', $request->type_id);
+                });
+            }
+            if ($request->filled('search')) {
+                $query->whereHas('product', function ($q) use ($request) {
+                    $q->where('name', 'like', '%' . $request->search . '%');
+                });
+            }
+            if ($request->filled('color_id')) {
+                $query->whereHas('product', function ($q) use ($request){
+                    $q->where('color_id', $request->color_id);
+                });
+            }
+
+            $productUnits = $query->get()->sortBy(function($unit) {
+                return $unit->product->name . ' - ' . $unit->name;
             });
-        }
-        if ($request->filled('search')) {
-            $query->whereHas('product', function ($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->search . '%');
-            });
-        }
-        if ($request->filled('color_id')) {
-            $query->whereHas('product', function ($q) use ($request){
-                $q->where('color_id', $request->color_id);
-            });
+        } else {
+            // Jika tidak ada filter, return empty collection
+            $productUnits = collect();
         }
 
-        $productUnits = $query->get()->sortBy(function($unit) {
-            return $unit->product->name . ' - ' . $unit->name;
-        });
         $productTypes = ProductType::orderBy('name', 'asc')->get();
         $productColors = ProductColor::orderBy('name', 'asc')->get();
         $customers = \App\Models\Customer::orderBy('name', 'asc')->get();
 
-        return view('transactions.create', compact('productUnits', 'productTypes', 'productColors', 'customers'));
+        return view('transactions.create', compact('productUnits', 'productTypes', 'productColors', 'customers', 'hasFilter'));
     }
 
 
@@ -147,26 +156,51 @@ class TransactionController extends Controller
             $cashAmount = (float) ($validated['cash_amount'] ?? 0);
             $changeAmount = 0;
             if ($validated['payment_method'] == 'cash') {
-                if ($cashAmount < $totalAmount) {
-                    throw new \Exception('Uang tunai tidak mencukupi!');
-                }
+
                 $changeAmount = $cashAmount - $totalAmount;
             }
 
-            // Handle customer (existing atau baru)
+            // Handle customer (reuse by phone to avoid duplicates)
             $customerId = $validated['customer_id'] ?? null;
-            if (!$customerId && !empty($validated['customer_name'])) {
-                // Buat customer baru
-                $newCustomer = \App\Models\Customer::create([
-                    'name' => strtoupper(trim($validated['customer_name'])),
-                    'phone' => $validated['customer_phone'] ?? null,
-                ]);
-                $customerId = $newCustomer->id;
-            } elseif ($customerId && !empty($validated['customer_phone'])) {
+            $incomingPhone = $validated['customer_phone'] ?? null;
+            $incomingName  = $validated['customer_name'] ?? null;
+
+            if (!$customerId) {
+                // Coba cari customer existing berdasarkan phone (prioritas) atau nama
+                $existingCustomer = null;
+                if ($incomingPhone) {
+                    $existingCustomer = \App\Models\Customer::where('phone', $incomingPhone)->first();
+                }
+                if (!$existingCustomer && $incomingName) {
+                    $existingCustomer = \App\Models\Customer::whereRaw('upper(name) = ?', [strtoupper(trim($incomingName))])->first();
+                }
+
+                if ($existingCustomer) {
+                    $customerId = $existingCustomer->id;
+                    // Update nama/phone jika ada data baru
+                    if ($incomingName) {
+                        $existingCustomer->name = strtoupper(trim($incomingName));
+                    }
+                    if ($incomingPhone) {
+                        $existingCustomer->phone = $incomingPhone;
+                    }
+                    $existingCustomer->save();
+                } elseif ($incomingName) {
+                    // Buat customer baru hanya jika benar-benar belum ada
+                    $newCustomer = \App\Models\Customer::create([
+                        'name' => strtoupper(trim($incomingName)),
+                        'phone' => $incomingPhone,
+                    ]);
+                    $customerId = $newCustomer->id;
+                }
+            } elseif ($customerId && $incomingPhone) {
                 // Update phone customer yang sudah ada jika diisi
                 $customer = \App\Models\Customer::find($customerId);
                 if ($customer) {
-                    $customer->phone = $validated['customer_phone'];
+                    $customer->phone = $incomingPhone;
+                    if ($incomingName) {
+                        $customer->name = strtoupper(trim($incomingName));
+                    }
                     $customer->save();
                 }
             }

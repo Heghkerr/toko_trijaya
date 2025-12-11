@@ -111,12 +111,6 @@
                             Card
                         </a>
                     </li>
-                    <li>
-                        <a class="dropdown-item {{ request('payment_method') == 'qris' ? 'active' : '' }}"
-                        href="{{ request()->fullUrlWithQuery(['payment_method' => 'qris']) }}">
-                            QRIS
-                        </a>
-                    </li>
                 </ul>
             </div>
         </div>
@@ -159,13 +153,13 @@
                 <thead class="table-light">
                     <tr>
                         <th width="3%" class="text-center">No</th>
-                        <th width="14%">Kode</th>
-                        <th width="14%">Tanggal</th>
-                        <th width="10%">Kasir</th>
-                        <th width="14%">Total</th>
-                        <th width="10%">Diskon</th>
-                        <th width="10%" class="text-center">Metode</th>
-                        <th width="10%" class="text-center">Status</th>
+                        <th width="12%">Kode</th>
+                        <th width="12%">Tanggal</th>
+                        <th width="9%">Kasir</th>
+                        <th width="12%">Total</th>
+                        <th width="9%">Diskon</th>
+                        <th width="9%" class="text-center">Metode</th>
+                        <th width="9%" class="text-center">Status</th>
                         <th width="15%" class="text-center">Aksi</th>
                     </tr>
                 </thead>
@@ -193,6 +187,7 @@
                                 @else
                                     <span class="badge bg-danger">REFUNDED</span>
                                 @endif
+                            </td>
                             <td class="text-center">
 
                                     @if($transaction->status === 'unpaid')
@@ -281,8 +276,23 @@
         font-size: 0.75rem;
     }
 
-
+    /* Tooltip initialization */
+    [data-bs-toggle="tooltip"] {
+        cursor: pointer;
+    }
 </style>
+@endsection
+
+@section('scripts')
+<script>
+    // Initialize tooltips
+    document.addEventListener('DOMContentLoaded', function() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
 @endsection
 
 

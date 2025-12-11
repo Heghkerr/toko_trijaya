@@ -2,6 +2,37 @@
 
 @section('title', 'Stok Opname')
 
+@push('styles')
+<style>
+.opname-highlight {
+    animation: opnamePulse 0.9s ease-in-out 0s 5 alternate;
+    box-shadow: 0 0 1.25rem rgba(255, 193, 7, 0.9);
+    outline: 3px solid #ffc107;
+    background-color: #fff3cd !important;
+    position: relative;
+}
+@keyframes opnamePulse {
+    from { background-color: #ffe69c; }
+    to   { background-color: #ffd24c; }
+}
+</style>
+<style>
+.opname-highlight::after {
+    content: 'Ditemukan';
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: #ffc107;
+    color: #000;
+    font-weight: 700;
+    font-size: 0.75rem;
+    box-shadow: 0 0 0.5rem rgba(0,0,0,0.15);
+}
+</style>
+@endpush
+
 @section('content')
 <div class="card shadow mb-4">
     <div class="card-header py-3 d-flex justify-content-between align-items-center">
@@ -17,11 +48,15 @@
 
         {{-- GANTI BAGIAN FILTER LAMA ANDA DENGAN INI --}}
         <div class="d-flex justify-content-between align-items-center mb-3">
+            {{-- Tombol Scan QR --}}
+            <button type="button" class="btn btn-outline-info btn-sm me-2" data-bs-toggle="modal" data-bs-target="#opnameQrScannerModal">
+                <i class="bi bi-qr-code-scan me-1"></i> Scan QR
+            </button>
 
             {{-- Search Bar (SOLUSI 1: Ganti flex-grow-1 jadi w-50 atau w-75) --}}
-            <form method="GET" action="{{ route('inventories.opname') }}" class="w-50">
+            <form method="GET" action="{{ route('inventories.opname') }}" class="flex-grow-1" id="opnameSearchForm">
                 <div class="input-group">
-                    <input type="search" name="search" class="form-control form-control-sm"
+                    <input type="search" name="search" class="form-control form-control-sm" id="opnameSearchInput"
                         placeholder="Cari berdasarkan Nama Produk..."
                         value="{{ request('search') }}">
 
@@ -250,9 +285,47 @@
     </div>
 </div>
 
+{{-- Modal QR Scanner untuk Opname --}}
+<div class="modal fade" id="opnameQrScannerModal" tabindex="-1" aria-labelledby="opnameQrScannerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="opnameQrScannerModalLabel">
+                    <i class="bi bi-qr-code-scan me-2"></i>Scan QR Code Produk
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="closeOpnameScannerBtn"></button>
+            </div>
+            <div class="modal-body">
+                <div id="opname-qr-reader" style="width: 100%; min-height: 320px; border-radius: 12px; background: #f8f9fa; position: relative; overflow: hidden;">
+                    <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+                        <div class="text-center">
+                            <i class="bi bi-camera-video" style="font-size: 3rem; opacity: 0.3;"></i>
+                            <p class="mt-2 mb-0">Memuat kamera...</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="opname-qr-reader-results" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="stopOpnameScannerBtn">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+
+    const OPNAME_TARGET_KEY = 'opname_target_unit_id';
+
+    function highlightRow(row) {
+        if (!row) return;
+        row.classList.add('opname-highlight');
+        // Hapus highlight setelah cukup lama agar mudah terlihat
+        setTimeout(() => row.classList.remove('opname-highlight'), 4500);
+    }
 
     function calculateRowDifference(row) {
         const stokSistemEl = row.querySelector('.stok-sistem');
@@ -289,6 +362,227 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     });
+
+    // QR Scanner untuk Opname
+    let opnameQrScanner = null;
+    let isOpnameScanning = false;
+
+    // Initialize scanner when modal is shown
+    const opnameQrModal = document.getElementById('opnameQrScannerModal');
+    if (opnameQrModal) {
+        opnameQrModal.addEventListener('shown.bs.modal', function () {
+            if (!isOpnameScanning) {
+                startOpnameQRScanner();
+            }
+        });
+
+        opnameQrModal.addEventListener('hidden.bs.modal', function () {
+            stopOpnameQRScanner();
+        });
+    }
+
+    document.getElementById('closeOpnameScannerBtn')?.addEventListener('click', function () {
+        stopOpnameQRScanner();
+    });
+
+    document.getElementById('stopOpnameScannerBtn')?.addEventListener('click', function () {
+        stopOpnameQRScanner();
+    });
+
+    function startOpnameQRScanner() {
+        const qrReaderElement = document.getElementById('opname-qr-reader');
+        const qrResultElement = document.getElementById('opname-qr-reader-results');
+
+        if (!qrReaderElement || !qrResultElement) return;
+
+        qrResultElement.innerHTML = `
+            <div class="alert alert-info d-flex align-items-center mb-0" role="alert">
+                <i class="bi bi-camera-video-fill me-2" style="font-size: 1.25rem;"></i>
+                <div>
+                    <strong>Memuat kamera...</strong> Arahkan kamera ke QR code produk untuk memindai.
+                </div>
+            </div>
+        `;
+
+        opnameQrScanner = new Html5Qrcode("opname-qr-reader");
+
+        opnameQrScanner.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: null, aspectRatio: 1.0 },
+            (decodedText) => {
+                handleOpnameQRScanned(decodedText);
+            },
+            () => {}
+        ).then(() => {
+            isOpnameScanning = true;
+            qrResultElement.innerHTML = `
+                <div class="alert alert-success d-flex align-items-center mb-0" role="alert">
+                    <i class="bi bi-camera-video-fill me-2" style="font-size: 1.25rem;"></i>
+                    <div>
+                        <strong>Kamera aktif!</strong> Arahkan kamera ke QR code produk untuk memindai.
+                    </div>
+                </div>
+            `;
+        }).catch((err) => {
+            console.error("Unable to start scanning", err);
+            qrResultElement.innerHTML = `
+                <div class="alert alert-danger d-flex align-items-center mb-0" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2" style="font-size: 1.25rem;"></i>
+                    <div>
+                        <strong>Gagal mengakses kamera.</strong> Pastikan Anda memberikan izin akses kamera.
+                    </div>
+                </div>
+            `;
+            isOpnameScanning = false;
+        });
+    }
+
+    function stopOpnameQRScanner() {
+        if (opnameQrScanner && isOpnameScanning) {
+            opnameQrScanner.stop().then(() => {
+                console.log("Opname QR Scanner stopped");
+                isOpnameScanning = false;
+            }).catch((err) => {
+                console.error("Error stopping scanner", err);
+                isOpnameScanning = false;
+            });
+        }
+    }
+
+    async function handleOpnameQRScanned(decodedText) {
+        const qrResultElement = document.getElementById('opname-qr-reader-results');
+
+        stopOpnameQRScanner();
+
+        // Parse QR code
+        let productUnitId = null;
+
+        const productMatch = decodedText.match(/\/product\/(\d+)/);
+        const inventoryMatch = decodedText.match(/\/inventories\/(\d+)/);
+
+        if (productMatch) {
+            productUnitId = productMatch[1];
+        } else if (inventoryMatch) {
+            productUnitId = inventoryMatch[1];
+        } else if (/^\d+$/.test(decodedText.trim())) {
+            productUnitId = decodedText.trim();
+        } else {
+            qrResultElement.innerHTML = `
+                <p class="text-danger">Format QR code tidak dikenali.</p>
+                <button class="btn btn-sm btn-primary mt-2" onclick="startOpnameQRScanner()">Coba Lagi</button>
+            `;
+            return;
+        }
+
+        qrResultElement.innerHTML = `
+            <div class="alert alert-info d-flex align-items-center mb-0" role="alert">
+                <i class="bi bi-hourglass-split me-2" style="font-size: 1.25rem;"></i>
+                <div><strong>Mencari produk...</strong></div>
+            </div>
+        `;
+
+        try {
+            const apiUrl = `{{ url('/api/product-unit') }}/${productUnitId}`;
+            const response = await fetch(apiUrl, { headers: { 'Accept': 'application/json' } });
+
+            if (!response.ok) {
+                throw new Error('Produk tidak ditemukan');
+            }
+
+            const data = await response.json();
+            const targetId = data.id || productUnitId;
+
+            // Coba cari baris berdasarkan ProductUnit ID
+            const inputField = document.querySelector(`input[name="opname[${targetId}][stok_fisik]"]`);
+
+            if (inputField) {
+                const row = inputField.closest('tr');
+
+                qrResultElement.innerHTML = `
+                    <div class="alert alert-success d-flex align-items-center mb-2" role="alert">
+                        <i class="bi bi-check-circle-fill me-2" style="font-size: 1.25rem;"></i>
+                        <div><strong>Produk ditemukan!</strong> Menyorot baris terkait...</div>
+                    </div>
+                    <p class="text-muted mb-0">Scroll ke produk dan fokus ke input stok fisik.</p>
+                `;
+
+                setTimeout(() => {
+                    // Simpan target untuk fallback (mis. reload)
+                    sessionStorage.setItem(OPNAME_TARGET_KEY, targetId);
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('opnameQrScannerModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+
+                    setTimeout(() => {
+                        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        highlightRow(row);
+                        inputField.focus();
+                        inputField.select();
+                    }, 300);
+                }, 400);
+            } else {
+                // Jika baris belum ada (mungkin karena filter / pagination), pakai pencarian otomatis
+                qrResultElement.innerHTML = `
+                    <div class="alert alert-warning d-flex align-items-center mb-2" role="alert">
+                        <i class="bi bi-search me-2" style="font-size: 1.25rem;"></i>
+                        <div><strong>Produk ditemukan, memuat daftar...</strong></div>
+                    </div>
+                    <p class="text-muted mb-0">Daftar akan difilter berdasarkan hasil scan.</p>
+                `;
+
+                const searchInput = document.getElementById('opnameSearchInput');
+                const searchForm = document.getElementById('opnameSearchForm');
+
+                setTimeout(() => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('opnameQrScannerModal'));
+                    if (modal) modal.hide();
+
+                    if (searchInput && searchForm) {
+                        const keyword = data.product_name && data.unit_name
+                            ? `${data.product_name} (${data.unit_name})`
+                            : (data.name || data.product_name || decodedText || '');
+                        searchInput.value = keyword;
+                        // Simpan target unit untuk difokuskan setelah reload
+                        sessionStorage.setItem(OPNAME_TARGET_KEY, targetId);
+                        setTimeout(() => {
+                            searchForm.submit();
+                        }, 150);
+                    }
+                }, 300);
+            }
+        } catch (error) {
+            console.error('Error fetching product unit for opname:', error);
+            qrResultElement.innerHTML = `
+                <div class="alert alert-danger d-flex align-items-center mb-2" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2" style="font-size: 1.25rem;"></i>
+                    <div><strong>Gagal mengambil data produk.</strong></div>
+                </div>
+                <p class="text-muted mb-2">Pastikan QR code valid atau coba lagi.</p>
+                <button class="btn btn-sm btn-primary mt-2" onclick="startOpnameQRScanner()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Coba Lagi
+                </button>
+            `;
+        }
+    }
+
+    // Setelah halaman dimuat, coba fokuskan baris berdasarkan target yang disimpan (jika ada)
+    (function focusTargetAfterReload() {
+        const targetId = sessionStorage.getItem(OPNAME_TARGET_KEY);
+        if (!targetId) return;
+
+        const inputField = document.querySelector(`input[name="opname[${targetId}][stok_fisik]"]`);
+        if (!inputField) return;
+
+        const row = inputField.closest('tr');
+        setTimeout(() => {
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            highlightRow(row);
+            inputField.focus();
+            inputField.select();
+            sessionStorage.removeItem(OPNAME_TARGET_KEY);
+        }, 300);
+    })();
 });
 </script>
 @endpush

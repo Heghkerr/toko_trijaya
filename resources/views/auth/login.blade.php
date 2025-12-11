@@ -4,18 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Trijaya</title>
+    <link rel="manifest" href="/manifest.json">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <style>
         :root {
             --primary-color: #fcbf3d;
-            /* --secondary-color: #f8f9fc; */
             --accent-color: #ffae00ff;
             --text-color: #6d6f7bff;
-            /* --primary-color: #4e73df; */
-            /* --accent-color: #2e59d9; */
-
-
         }
 
         body {
@@ -23,11 +19,6 @@
             height: 100vh;
             display: flex;
             align-items: center;
-            /* background-image: url("http://localhost/toko_trijaya/public/file/Foto_Gemini_AI.png"); */
-            /* background-color: var(--secondary-color); */
-            /* background-size: cover; */
-            /* background-position: center; */
-            /* background-blend-mode: overlay; */
             background-color: rgba(255, 255, 255, 1);
         }
 
@@ -165,7 +156,7 @@
             <div class="col-md-8 col-lg-6 login-container">
                 <div class="card login-card">
                     <div class="card-header">
-                        <img src="http://localhost/toko_trijaya/public/file/TRUE_HOME_LOGO.jpg"
+                        <img src="{{ asset('file/TRUE_HOME_LOGO.jpg') }}"
                         alt="Trijaya LOGO" class="brand-logo rounded-circle">
                         <h4>Welcome to Trijaya</h4>
                     </div>
@@ -242,6 +233,37 @@
                 el.classList.add('animate__animated', 'animate__fadeInUp');
             });
         });
+    </script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                var swPath = '{{ secure_asset("serviceworker.js") }}';
+                // Extract pathname if full URL
+                if (swPath.startsWith('http')) {
+                    var url = new URL(swPath);
+                    swPath = url.pathname;
+                }
+
+                console.log('🔄 [Login] Registering service worker from:', swPath);
+
+                // Deteksi scope berdasarkan path aplikasi
+                var basePath = swPath.substring(0, swPath.lastIndexOf('/') + 1);
+                var scope = basePath || '/';
+
+                console.log('📍 [Login] Detected base path:', basePath);
+                console.log('📍 [Login] Using scope:', scope);
+
+                navigator.serviceWorker.register(swPath, {
+                    scope: scope
+                }).then(function(registration) {
+                    console.log('✅ [Login] Service Worker registered:', registration.scope);
+                }).catch(function(error) {
+                    console.error('❌ [Login] Service Worker registration failed:', error);
+                });
+            });
+        }
     </script>
 </body>
 </html>

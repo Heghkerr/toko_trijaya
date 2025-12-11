@@ -153,20 +153,21 @@ class ProductController extends Controller
 
             if (!empty($validated['units'])) {
                 foreach ($validated['units'] as $unitData) {
+                    $unitStock = isset($unitData['stock']) && $unitData['stock'] !== '' ? (int)$unitData['stock'] : 0;
                     // Simpan unit/variasi
                     $unit = $product->units()->create([
                         'name'                => $unitData['name'],
                         'conversion_value'    => $unitData['conversion_value'],
                         'price'               => $unitData['price'],
-                        'stock'               => $unitData['stock'],
+                        'stock'               => $unitStock,
                     ]);
 
                     // Buat log inventory untuk SETIAP unit
-                    if ($unitData['stock'] > 0) {
+                    if ($unitStock > 0) {
                         Inventory::create([
                             'product_id' => $product->id,
                             'product_unit_id' => $unit->id, // <-- (Opsional tapi disarankan)
-                            'quantity' => $unitData['stock'],
+                            'quantity' => $unitStock,
                             'user_id' => auth()->id(),
                             'type' => 'masuk',
                             'description' => 'Stok awal (' . $unitData['name'] . ')'
@@ -269,7 +270,7 @@ class ProductController extends Controller
 
 
                 $oldStock = $unit->stock ?? 0;
-                $newStock = $unitData['stock'] ?? 0;
+                $newStock = isset($unitData['stock']) && $unitData['stock'] !== '' ? (int)$unitData['stock'] : 0;
 
                 $unit->name = $unitData['name'];
                 $unit->conversion_value = $unitData['conversion_value'];

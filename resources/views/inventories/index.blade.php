@@ -180,7 +180,16 @@
                 <tbody>
                     {{-- [DIUBAH] Loop $productUnits, bukan $products --}}
                     @forelse($productUnits as $index => $unit)
-                    <tr>
+                    @php
+                        $stockStatus = $unit->stock_status ?? 'normal';
+                        $rowClass = $stockStatus === 'understock'
+                            ? 'stock-row-understock'
+                            : ($stockStatus === 'overstock' ? 'stock-row-overstock' : '');
+                        $statusPillClass = $stockStatus === 'understock'
+                            ? 'stock-status-pill stock-status-pill--under'
+                            : ($stockStatus === 'overstock' ? 'stock-status-pill stock-status-pill--over' : '');
+                    @endphp
+                    <tr class="{{ $rowClass }}">
                         <td>{{ $productUnits->firstItem() + $index }}</td>
                         {{-- <td>
                             @if($unit->product->image)
@@ -193,6 +202,11 @@
                             <a href="{{ route('inventories.show', $unit) }}">
                                 {{ $unit->product->name }} ({{ $unit->product->color->name ?? '-' }})
                             </a>
+                            @if($stockStatus !== 'normal')
+                                <span class="{{ $statusPillClass }}">
+                                    {{ ucfirst($stockStatus) }}
+                                </span>
+                            @endif
                         </td>
                         <td>{{ $unit->product->type->name ?? '-' }}</td>
                         <td style="min-width: 100px;">{{ $unit->name }} ({{ $unit->conversion_value }} pcs)</td>
@@ -333,6 +347,31 @@
 .modal-body {
     max-height: 70vh;
     overflow-y: auto;
+}
+.stock-row-understock {
+    background-color: rgba(220, 53, 69, 0.08);
+    box-shadow: inset 4px 0 0 #dc3545;
+}
+.stock-row-overstock {
+    background-color: rgba(243, 156, 18, 0.1);
+    box-shadow: inset 4px 0 0 #f39c12;
+}
+.stock-status-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 0.15rem 0.6rem;
+    margin-left: 0.4rem;
+}
+.stock-status-pill--under {
+    background-color: rgba(220, 53, 69, 0.15);
+    color: #dc3545;
+}
+.stock-status-pill--over {
+    background-color: rgba(243, 156, 18, 0.2);
+    color: #f39c12;
 }
 </style>
 <script>

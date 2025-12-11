@@ -40,7 +40,7 @@
                 {{-- [BARU] QR Code Section --}}
                 <div class="mt-3" id="qr-code-container">
                     <h6 class="text-muted">Scan QR untuk Detail</h6>
-                    {!! QrCode::size(150)->generate(route('inventories.show', $unit)) !!}
+                    {!! QrCode::size(150)->generate(route('product.public.show', $unit)) !!}
                     <p class="mt-2 mb-0" style="font-size: 0.8rem;">
                         <strong>{{ $unit->product->name }}</strong>
                         <br>
@@ -162,8 +162,9 @@
             height: 100%;
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            align-items: center;
+            justify-content: flex-start;
+            align-items: flex-start;
+            padding: 20px;
         }
     }
 </style>

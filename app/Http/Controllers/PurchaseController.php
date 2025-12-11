@@ -34,10 +34,34 @@ class PurchaseController extends Controller
         return view('purchases.index', compact('purchases'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        $request->validate([
+            'type_id' => 'nullable|integer|exists:product_types,id',
+            'color_id'=> 'nullable|integer|exists:product_colors,id',
+        ]);
 
-        $products = Product::orderBy('name', 'asc')->get();
+        $query = Product::with(['type', 'color']);
+
+        // Hanya tampilkan produk jika ada search atau filter
+        $hasFilter = $request->filled('search') || ($request->has('type_id') && $request->type_id) || ($request->filled('color_id'));
+
+        if ($hasFilter) {
+            if ($request->has('type_id') && $request->type_id) {
+                $query->where('type_id', $request->type_id);
+            }
+            if ($request->filled('search')) {
+                $query->where('name', 'like', '%' . $request->search . '%');
+            }
+            if ($request->filled('color_id')) {
+                $query->where('color_id', $request->color_id);
+            }
+
+            $products = $query->orderBy('name', 'asc')->get();
+        } else {
+            $products = collect();
+        }
+
         $suppliers = Supplier::orderBy('name', 'asc')->get();
         $supplierOptions = $suppliers->map(function ($supplier) {
             return [
@@ -48,10 +72,16 @@ class PurchaseController extends Controller
             ];
         })->values();
 
+        $productTypes = \App\Models\ProductType::orderBy('name', 'asc')->get();
+        $productColors = \App\Models\ProductColor::orderBy('name', 'asc')->get();
+
         return view('purchases.create', [
             'products'        => $products,
             'suppliers'       => $suppliers,
             'supplierOptions' => $supplierOptions,
+            'productTypes'    => $productTypes,
+            'productColors'   => $productColors,
+            'hasFilter'       => $hasFilter,
         ]);
     }
 
@@ -118,15 +148,11 @@ class PurchaseController extends Controller
                     'subtotal'        => $subtotal,
                 ]);
 
-                // [DIHAPUS] Semua logika stok (if 'completed', increment, inventory)
-                // dihapus dari 'store'
             }
 
             // 5. Update Total Harga
             $purchase->total_amount = $totalAmount;
             $purchase->save();
-
-            // [DIHAPUS] Semua logika CashFlow dihapus dari 'store'
 
             // 6. Kirim pesan ke supplier
             $this->sendPurchaseToSupplier($purchase);
@@ -286,6 +312,9 @@ class PurchaseController extends Controller
                         'purchase_id' => $purchase->id,
                     ]);
                 }
+            } else {
+                // Pastikan tidak ada arus kas tersisa untuk pembelian pending
+                CashFlow::where('purchase_id', $purchase->id)->delete();
             }
 
 
@@ -363,16 +392,6 @@ class PurchaseController extends Controller
                     throw new \Exception("Detail item (ID: {$item['detail_id']}) tidak valid.");
                 }
 
-                // =============================================================
-                // INI ADALAH PERBAIKANNYA (Baris 348 Anda)
-                // =============================================================
-
-                // LOGIKA LAMA (ERROR):
-                // $productUnit = ProductUnit::where('product_id', $detail->product_id)
-                //                         ->where('name', $detail->unit_name) // $detail->unit_name KOSONG
-                //                         ->first();
-
-                // LOGIKA BARU (FIX):
                 // Cari unit dasar (PCS) berdasarkan conversion_value = 1
                 $productUnit = ProductUnit::where('product_id', $detail->product_id)
                                         ->where('conversion_value', 1)

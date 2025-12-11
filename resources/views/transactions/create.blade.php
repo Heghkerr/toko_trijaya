@@ -38,12 +38,20 @@
         <div class="row mb-4">
 
             <div class="col-md-5">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div class="d-flex gap-2 w-100">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-bottom py-2">
+                        <h6 class="mb-0 fw-bold text-primary">
+                            <i class="bi bi-box-seam me-2"></i>Cari Produk
+                        </h6>
+                    </div>
+                    <div class="card-body">
                         {{-- Search Bar --}}
-                        <form method="GET" action="{{ route('transactions.create') }}" class="flex-grow-1" id="searchForm">
+                        <form method="GET" action="{{ route('transactions.create') }}" class="mb-4" id="searchForm">
                             <div class="input-group">
-                                <input type="search" name="search" class="form-control form-control-sm"
+                                <span class="input-group-text bg-light">
+                                    <i class="bi bi-search text-muted"></i>
+                                </span>
+                                <input type="search" name="search" class="form-control"
                                     placeholder="Cari Produk..."
                                     value="{{ request('search') }}">
                                 @if(request('type_id'))
@@ -52,122 +60,170 @@
                                 @if(request('color_id'))
                                     <input type="hidden" name="color_id" value="{{ request('color_id') }}">
                                 @endif
-                                <button class="btn btn-primary btn-sm" type="submit">
+                                <button class="btn btn-primary" type="submit">
                                     <i class="bi bi-search"></i>
                                 </button>
                             </div>
                         </form>
 
-                        {{-- Filter Jenis --}}
-                        <div class="dropdown" style="z-index: 1030;">
-                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                <i class="bi bi-funnel me-1"></i> Jenis
+                        {{-- Scan QR & Filter --}}
+                        <div class="d-flex gap-2 flex-wrap mb-3">
+                            <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#transactionQrScannerModal">
+                                <i class="bi bi-qr-code-scan me-1"></i> Scan QR
                             </button>
-                            <ul class="dropdown-menu">
-                                <li><h6 class="dropdown-header">Jenis Barang</h6></li>
-                                @foreach($productTypes as $type)
+
+                            {{-- Filter Jenis --}}
+                            <div class="dropdown" style="z-index: 1030;">
+                                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <i class="bi bi-funnel me-1"></i> Jenis
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><h6 class="dropdown-header">Jenis Barang</h6></li>
+                                    @foreach($productTypes as $type)
+                                        <li>
+                                            <a class="dropdown-item {{ request('type_id') == $type->id ? 'active' : '' }}"
+                                                data-keep-cart="true"
+                                                href="{{ request()->fullUrlWithQuery(['type_id' => $type->id]) }}">
+                                                {{ $type->name }}
+                                            </a>
+                                        </li>
+                                    @endforeach
+                                    <li><hr class="dropdown-divider"></li>
                                     <li>
-                                        <a class="dropdown-item {{ request('type_id') == $type->id ? 'active' : '' }}"
-                                            href="{{ request()->fullUrlWithQuery(['type_id' => $type->id]) }}">
-                                            {{ $type->name }}
+                                        <a class="dropdown-item text-danger" data-keep-cart="true"
+                                            href="{{ request()->fullUrlWithQuery(['type_id' => null]) }}">
+                                            Reset Jenis
                                         </a>
                                     </li>
-                                @endforeach
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <a class="dropdown-item text-danger" href="{{ request()->fullUrlWithQuery(['type_id' => null]) }}">
-                                        Reset Jenis
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
+                                </ul>
+                            </div>
 
-                        {{-- Filter Warna --}}
-                        <div class="dropdown" style="z-index: 1030;">
-                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                <i class="bi bi-palette me-1"></i> Warna
-                            </button>
-                            <ul class="dropdown-menu">
-                                <li><h6 class="dropdown-header">Warna Barang</h6></li>
-                                @foreach($productColors as $color)
+                            {{-- Filter Warna --}}
+                            <div class="dropdown" style="z-index: 1030;">
+                                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <i class="bi bi-palette me-1"></i> Warna
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><h6 class="dropdown-header">Warna Barang</h6></li>
+                                    @foreach($productColors as $color)
+                                        <li>
+                                            <a class="dropdown-item {{ request('color_id') == $color->id ? 'active' : '' }}"
+                                                data-keep-cart="true"
+                                                href="{{ request()->fullUrlWithQuery(['color_id' => $color->id]) }}">
+                                                {{ $color->name }}
+                                            </a>
+                                        </li>
+                                    @endforeach
+                                    <li><hr class="dropdown-divider"></li>
                                     <li>
-                                        <a class="dropdown-item {{ request('color_id') == $color->id ? 'active' : '' }}"
-                                            href="{{ request()->fullUrlWithQuery(['color_id' => $color->id]) }}">
-                                            {{ $color->name }}
+                                        <a class="dropdown-item text-danger" data-keep-cart="true"
+                                            href="{{ request()->fullUrlWithQuery(['color_id' => null]) }}">
+                                            Reset Warna
                                         </a>
                                     </li>
-                                @endforeach
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <a class="dropdown-item text-danger" href="{{ request()->fullUrlWithQuery(['color_id' => null]) }}">
-                                        Reset Warna
-                                    </a>
-                                </li>
-                            </ul>
+                                </ul>
+                            </div>
                         </div>
 
+                        {{-- Badge Filter Aktif --}}
+                        @if(request('type_id') || request('color_id'))
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                            <span class="text-muted fw-semibold me-1">Filter Aktif:</span>
+                            @if(request('type_id'))
+                                @php
+                                    $activeType = $productTypes->firstWhere('id', request('type_id'));
+                                @endphp
+                                <span class="badge bg-primary d-flex align-items-center">
+                                    Jenis: {{ $activeType->name ?? 'Tidak diketahui' }}
+                                    <a class="text-white ms-2" style="text-decoration: none; font-weight: 700;"
+                                       data-keep-cart="true"
+                                       href="{{ request()->fullUrlWithQuery(['type_id' => null]) }}">&times;</a>
+                                </span>
+                            @endif
+                            @if(request('color_id'))
+                                @php
+                                    $activeColor = $productColors->firstWhere('id', request('color_id'));
+                                @endphp
+                                <span class="badge bg-success d-flex align-items-center">
+                                    Warna: {{ $activeColor->name ?? 'Tidak diketahui' }}
+                                    <a class="text-white ms-2" style="text-decoration: none; font-weight: 700;"
+                                       data-keep-cart="true"
+                                       href="{{ request()->fullUrlWithQuery(['color_id' => null]) }}">&times;</a>
+                                </span>
+                            @endif
+                        </div>
+                        @endif
+
+                        {{-- Tabel Produk (scrollable) --}}
+                        <div class="table-responsive" style="max-height: 60vh; border-radius: 8px; overflow: auto;">
+                            <table class="table table-hover table-bordered mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th class="align-middle">Produk (Variasi)</th>
+                                        <th class="align-middle text-end" style="width: 130px;">Harga Jual</th>
+                                        <th class="align-middle text-center" style="width: 90px;">Stok</th>
+                                        <th class="align-middle text-center" style="width: 80px;">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="productList">
+
+                                    @forelse($productUnits as $unit)
+                                    <tr class="product-row align-middle">
+                                        {{-- Kolom Nama --}}
+                                        <td>
+                                            <div class="fw-semibold mb-1">
+                                                {{ $unit->product->name }}
+                                                <small class="text-muted">({{ $unit->product->color?->name ?? '-' }})</small>
+                                            </div>
+                                            <div class="mt-1">
+                                                <span class="badge bg-primary">{{ $unit->name }}</span>
+                                                <small class="text-muted ms-1">({{ $unit->conversion_value }} pcs)</small>
+                                            </div>
+                                        </td>
+
+                                        {{-- Kolom Harga --}}
+                                        <td class="text-end">
+                                            <span class="fw-semibold text-success">Rp {{ number_format($unit->price, 0, ',', '.') }}</span>
+                                        </td>
+
+                                        {{-- Kolom Stok --}}
+                                        <td class="text-center">
+                                            @if($unit->stock > 0)
+                                                <span class="badge bg-success stock-display">{{ $unit->stock }}</span>
+                                            @else
+                                                <span class="badge bg-danger stock-display">Habis</span>
+                                            @endif
+                                        </td>
+
+                                        {{-- Kolom Aksi --}}
+                                        <td class="text-center">
+                                            <button
+                                                type="button"
+                                                class="btn btn-primary btn-sm add-product"
+                                                data-unit-id="{{ $unit->id }}"
+                                                data-product-id="{{ $unit->product_id }}"
+                                                data-name="{{ $unit->product->name }} ({{ $unit->name }})"
+                                                data-unit-name="{{ $unit->name }}"
+                                                data-color="{{ $unit->product->color?->name ?? '-' }}"
+                                                data-price="{{ $unit->price }}"
+                                                data-stock="{{ $unit->stock }}"
+                                                data-conversion="{{ $unit->conversion_value }}"
+                                                @if($unit->stock <= 0) disabled @endif>
+                                                <i class="bi bi-plus"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    @empty
+                                    <tr>
+                                        <td colspan="4" class="text-center">
+                                            <i class="bi bi-search me-2"></i>Tidak ada produk yang ditemukan.
+                                        </td>
+                                    </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
-
-                <div class="table-responsive" style="max-height: 60vh;">
-                    <table class="table table-bordered table-hover">
-                        <thead class="table-light sticky-top">
-                            <tr>
-                                <th>Produk (Variasi)</th>
-                                <th>Harga Jual</th>
-                                <th>Stok</th>
-                                <th style="width: 80px;">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="productList">
-
-                            @forelse($productUnits as $unit)
-                            <tr class="product-row">
-                                {{-- Kolom Nama --}}
-                                <td>
-                                    {{ $unit->product->name }} ({{$unit->product->color?->name ?? '-'}})
-                                    <br>
-                                    <strong class="text-primary">{{ $unit->name }}</strong>
-                                    <small class="text-muted"> ({{ $unit->conversion_value }} pcs)</small>
-                                </td>
-
-                                {{-- Kolom Harga (Langsung) --}}
-                                <td class_unit-price>Rp {{ number_format($unit->price, 0, ',', '.') }}</td>
-
-                                {{-- Kolom Stok (Langsung) --}}
-                                <td class="text-center">
-                                    @if($unit->stock > 0)
-                                        <span class="stock-display">{{ $unit->stock }}</span>
-                                    @else
-                                        <span class="text-danger fw-bold stock-display">Habis</span>
-                                    @endif
-                                </td>
-
-                                {{-- Kolom Aksi --}}
-                                <td>
-                                    <button
-                                        type="button"
-                                        class="btn btn-primary btn-sm add-product"
-                                        data-unit-id="{{ $unit->id }}"
-                                        data-product-id="{{ $unit->product_id }}"
-                                        data-name="{{ $unit->product->name }} ({{ $unit->name }})"
-                                        data-unit-name="{{ $unit->name }}" {{-- <-- TAMBAHKAN INI (Untuk database) --}}
-                                        data-color="{{ $unit->product->color?->name ?? '-' }}"
-                                        data-price="{{ $unit->price }}"
-                                        data-stock="{{ $unit->stock }}"
-                                        data-conversion="{{ $unit->conversion_value }}"
-                                        @if($unit->stock <= 0) disabled @endif>
-                                        <i class="bi bi-plus"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            @empty
-                            <tr>
-                                <td colspan="4" class="text-center">Tidak ada produk yang ditemukan.</td>
-                            </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
                 </div>
             </div>
 
@@ -278,8 +334,41 @@
         </div>
     </div>
 </div>
+
+{{-- Modal QR Scanner untuk Transaksi --}}
+<div class="modal fade" id="transactionQrScannerModal" tabindex="-1" aria-labelledby="transactionQrScannerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold" id="transactionQrScannerModalLabel">
+                    <i class="bi bi-qr-code-scan me-2"></i>Scan QR Code Produk
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" id="closeTransactionScannerBtn"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <div id="transaction-qr-reader" style="width: 100%; min-height: 240px; border: 2px dashed #dee2e6; border-radius: 12px; background: #f8f9fa; position: relative; overflow: hidden;">
+                        <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+                            <div class="text-center">
+                                <i class="bi bi-camera-video" style="font-size: 3rem; opacity: 0.3;"></i>
+                                <p class="mt-2 mb-0">Memuat kamera...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="transaction-qr-reader-results"></div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="stopTransactionScannerBtn">
+                    <i class="bi bi-x-circle me-1"></i>Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
+{{-- Script transaksi & scanner ditempatkan di bagian bawah file --}}
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -1171,6 +1260,44 @@
         }
     }
 
+    // Fallback jika Background Sync tidak jalan: paksa sync saat online
+    async function manualSyncPendingTransactions() {
+        if (!navigator.onLine) return;
+        try {
+            let queue = await get('pending-transactions', transactionStore) || [];
+            if (queue.length === 0) return;
+
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+
+            while (queue.length > 0) {
+                const data = queue[0];
+                const res = await fetch('/transactions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {})
+                    },
+                    body: JSON.stringify(data)
+                }).catch(() => null);
+
+                if (!res || !res.ok) {
+                    console.warn('Manual sync gagal, coba lagi nanti');
+                    break;
+                }
+
+                queue.shift();
+                await set('pending-transactions', queue, transactionStore);
+            }
+        } catch (err) {
+            console.error('Manual sync error:', err);
+        }
+    }
+
+    // Trigger manual sync ketika kembali online atau saat halaman dibuka dalam keadaan online
+    window.addEventListener('online', manualSyncPendingTransactions);
+    manualSyncPendingTransactions();
+
 }); // Penutup $(document).ready
 
     } // Penutup function initApp
@@ -1405,5 +1532,241 @@ window.isRestored = false;
 
 })();
 
+</script>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+    let transactionQrScanner = null;
+    let isTransactionScanning = false;
+
+    const transactionScannerModal = document.getElementById('transactionQrScannerModal');
+    const closeTransactionScannerBtn = document.getElementById('closeTransactionScannerBtn');
+    const stopTransactionScannerBtn = document.getElementById('stopTransactionScannerBtn');
+
+    if (transactionScannerModal) {
+        transactionScannerModal.addEventListener('shown.bs.modal', function () {
+            if (!isTransactionScanning) {
+                startTransactionQRScanner();
+            }
+        });
+
+        transactionScannerModal.addEventListener('hidden.bs.modal', function () {
+            stopTransactionQRScanner();
+        });
+    }
+
+    if (closeTransactionScannerBtn) {
+        closeTransactionScannerBtn.addEventListener('click', stopTransactionQRScanner);
+    }
+
+    if (stopTransactionScannerBtn) {
+        stopTransactionScannerBtn.addEventListener('click', stopTransactionQRScanner);
+    }
+
+    function startTransactionQRScanner() {
+        const qrReaderElement = document.getElementById('transaction-qr-reader');
+        const qrResultElement = document.getElementById('transaction-qr-reader-results');
+
+        if (!qrReaderElement || !qrResultElement) {
+            return;
+        }
+
+        qrResultElement.innerHTML = `
+            <div class="alert alert-info d-flex align-items-center mb-0" role="alert">
+                <i class="bi bi-camera-video-fill me-2" style="font-size: 1.25rem;"></i>
+                <div>
+                    <strong>Memuat kamera...</strong> Arahkan kamera ke QR code produk untuk memindai.
+                </div>
+            </div>
+        `;
+
+        transactionQrScanner = new Html5Qrcode("transaction-qr-reader");
+
+        transactionQrScanner.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: null, aspectRatio: 1.0 },
+            (decodedText) => {
+                handleTransactionQRScanned(decodedText);
+            },
+            () => {}
+        ).then(() => {
+            isTransactionScanning = true;
+            qrResultElement.innerHTML = `
+                <div class="alert alert-success d-flex align-items-center mb-0" role="alert">
+                    <i class="bi bi-camera-video-fill me-2" style="font-size: 1.25rem;"></i>
+                    <div>
+                        <strong>Kamera aktif!</strong> Arahkan kamera ke QR code produk untuk memindai.
+                    </div>
+                </div>
+            `;
+        }).catch((err) => {
+            console.error("Unable to start scanning", err);
+            qrResultElement.innerHTML = `
+                <div class="alert alert-danger d-flex align-items-center mb-0" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2" style="font-size: 1.25rem;"></i>
+                    <div>
+                        <strong>Gagal mengakses kamera.</strong> Pastikan Anda memberikan izin akses kamera.
+                    </div>
+                </div>
+            `;
+            isTransactionScanning = false;
+        });
+    }
+
+    function stopTransactionQRScanner() {
+        if (transactionQrScanner && isTransactionScanning) {
+            transactionQrScanner.stop().then(() => {
+                isTransactionScanning = false;
+            }).catch((err) => {
+                console.error("Error stopping scanner", err);
+                isTransactionScanning = false;
+            });
+        }
+    }
+
+    async function handleTransactionQRScanned(decodedText) {
+        const qrResultElement = document.getElementById('transaction-qr-reader-results');
+
+        stopTransactionQRScanner();
+
+        if (!qrResultElement) {
+            return;
+        }
+
+        let productUnitId = null;
+        const productMatch = decodedText.match(/\/product\/(\d+)/i);
+        const inventoryMatch = decodedText.match(/\/inventories\/(\d+)/i);
+
+        if (productMatch) {
+            productUnitId = productMatch[1];
+        } else if (inventoryMatch) {
+            productUnitId = inventoryMatch[1];
+        } else if (/^\d+$/.test(decodedText.trim())) {
+            productUnitId = decodedText.trim();
+        }
+
+        if (!productUnitId) {
+            qrResultElement.innerHTML = `
+                <div class="alert alert-danger mb-3" role="alert">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-exclamation-triangle-fill me-2" style="font-size: 1.25rem;"></i>
+                        <strong>Format QR code tidak dikenali.</strong>
+                    </div>
+                    <p class="mb-0">Pastikan QR code berasal dari sistem inventaris.</p>
+                </div>
+                <div class="text-center">
+                    <button class="btn btn-primary btn-sm" onclick="startTransactionQRScanner()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Coba Lagi
+                    </button>
+                </div>
+            `;
+            return;
+        }
+
+        qrResultElement.innerHTML = `
+            <div class="alert alert-info d-flex align-items-center mb-0" role="alert">
+                <i class="bi bi-hourglass-split me-2" style="font-size: 1.25rem;"></i>
+                <div><strong>Mencari produk...</strong></div>
+            </div>
+        `;
+
+        try {
+            const apiUrl = `{{ url('/api/product-unit') }}/${productUnitId}`;
+            const response = await fetch(apiUrl, { headers: { 'Accept': 'application/json' } });
+
+            if (!response.ok) {
+                throw new Error('Produk tidak ditemukan');
+            }
+
+            const data = await response.json();
+            const targetButton = document.querySelector(`.add-product[data-unit-id="${productUnitId}"]`);
+
+            if (targetButton) {
+                if (targetButton.hasAttribute('disabled')) {
+                    qrResultElement.innerHTML = `
+                        <div class="alert alert-warning d-flex align-items-center mb-0" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2" style="font-size: 1.25rem;"></i>
+                            <div>
+                                <strong>Stok habis.</strong> Produk ditemukan tetapi stok pada variasi ini kosong.
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                qrResultElement.innerHTML = `
+                    <div class="alert alert-success d-flex align-items-center mb-0" role="alert">
+                        <i class="bi bi-check-circle-fill me-2" style="font-size: 1.25rem;"></i>
+                        <div>
+                            <strong>Produk ditemukan!</strong> Menambahkan ke keranjang...
+                        </div>
+                    </div>
+                `;
+
+                setTimeout(() => {
+                    targetButton.click();
+                    setTimeout(() => {
+                        if (transactionScannerModal) {
+                            const modal = bootstrap.Modal.getInstance(transactionScannerModal);
+                            if (modal) {
+                                modal.hide();
+                            }
+                        }
+                    }, 400);
+                }, 400);
+            } else {
+                qrResultElement.innerHTML = `
+                    <div class="alert alert-warning d-flex align-items-center mb-2" role="alert">
+                        <i class="bi bi-search me-2" style="font-size: 1.25rem;"></i>
+                        <div>
+                            <strong>Produk ditemukan, tetapi tidak ada di daftar saat ini.</strong>
+                        </div>
+                    </div>
+                    <p class="text-muted mb-2">Kami akan otomatis mencari produk ini di daftar.</p>
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status" style="width: 1.5rem; height: 1.5rem;">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                `;
+
+                const searchInput = document.querySelector('#searchForm input[name="search"]');
+
+                setTimeout(() => {
+                    if (transactionScannerModal) {
+                        const modal = bootstrap.Modal.getInstance(transactionScannerModal);
+                        if (modal) {
+                            modal.hide();
+                        }
+                    }
+
+                    if (searchInput) {
+                        searchInput.value = data.product_name;
+                        setTimeout(() => {
+                            document.getElementById('searchForm').submit();
+                        }, 200);
+                    }
+                }, 600);
+            }
+        } catch (error) {
+            console.error('Error fetching product:', error);
+            qrResultElement.innerHTML = `
+                <div class="alert alert-danger mb-3" role="alert">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-exclamation-triangle-fill me-2" style="font-size: 1.25rem;"></i>
+                        <strong>Gagal mengambil data produk.</strong>
+                    </div>
+                    <p class="mb-0">Pastikan QR code berasal dari sistem atau coba lagi.</p>
+                </div>
+                <div class="text-center">
+                    <button class="btn btn-primary btn-sm" onclick="startTransactionQRScanner()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Coba Lagi
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    window.startTransactionQRScanner = startTransactionQRScanner;
 </script>
 @endpush

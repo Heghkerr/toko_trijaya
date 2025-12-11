@@ -82,4 +82,73 @@ class WhatsappService
             return ['status' => false, 'message' => 'Error: ' . $e->getMessage()];
         }
     }
+
+    /**
+     * Kirim gambar via WhatsApp
+     *
+     * @param string $target Nomor HP tujuan
+     * @param string $imageUrl URL gambar (harus bisa diakses publik)
+     * @param string $caption Caption untuk gambar (opsional)
+     * @return array
+     */
+    public function sendImage($target, $imageUrl, $caption = '')
+    {
+        if (!$this->token) {
+            Log::error('FONNTE_TOKEN belum di-set di .env');
+            return ['status' => false, 'message' => 'Token Fonnte not configured.'];
+        }
+
+        try {
+            // Fonnte API untuk kirim gambar menggunakan parameter 'url' dan 'type' => 'image'
+            // Parameter 'message' wajib diisi (bisa menggunakan caption atau default)
+            $payload = [
+                'target' => $target,
+                'url' => $imageUrl,
+                'type' => 'image',
+                'message' => $caption ?: '📸 Katalog Produk',
+                'countryCode' => '62',
+            ];
+
+            if ($caption) {
+                $payload['caption'] = $caption;
+            }
+
+            Log::info('Sending image via Fonnte', [
+                'target' => $target,
+                'url' => $imageUrl,
+                'caption' => $caption
+            ]);
+
+            $response = Http::withHeaders([
+                'Authorization' => $this->token,
+            ])->post('https://api.fonnte.com/send', $payload);
+
+            $responseData = $response->json();
+            Log::info('Fonnte image sent to ' . $target, [
+                'response' => $responseData,
+                'status_code' => $response->status()
+            ]);
+
+            if ($response->successful()) {
+                // Fonnte mengembalikan status: true (boolean) atau 'success' (string)
+                // Juga cek detail yang berisi "success! message in queue"
+                $isSuccess = (isset($responseData['status']) && ($responseData['status'] === true || $responseData['status'] === 'success'))
+                    || (isset($responseData['detail']) && strpos(strtolower($responseData['detail']), 'success') !== false);
+
+                if ($isSuccess) {
+                    return ['status' => true, 'message' => 'Gambar berhasil dikirim', 'data' => $responseData];
+                } else {
+                    $errorMsg = $responseData['message'] ?? $responseData['msg'] ?? 'Gagal mengirim gambar';
+                    return ['status' => false, 'message' => $errorMsg, 'data' => $responseData];
+                }
+            } else {
+                $errorMsg = $responseData['message'] ?? $responseData['msg'] ?? 'HTTP Error: ' . $response->status();
+                return ['status' => false, 'message' => $errorMsg, 'data' => $responseData, 'http_status' => $response->status()];
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Fonnte send image error: ' . $e->getMessage());
+            return ['status' => false, 'message' => 'Error: ' . $e->getMessage()];
+        }
+    }
 }

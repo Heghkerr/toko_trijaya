@@ -34,10 +34,31 @@ use App\Http\Controllers\PurchaseReturnController;
 |
 */
 
+// PWA Routes
 Route::get('/offline', function () {
     return view('offline');
 });
 
+// Manifest route - handle baik dari root maupun subfolder
+// Manifest
+Route::get('/manifest.json', function () {
+    return response()->file(public_path('manifest.json'), [
+        'Content-Type' => 'application/manifest+json'
+    ]);
+});
+
+// Service Worker
+Route::get('/service-worker.js', function () {
+    return response()->file(public_path('service-worker.js'), [
+        'Content-Type' => 'application/javascript'
+    ]);
+});
+
+
+
+Route::get('/', function () {
+    return redirect()->route('login');
+});
 Route::get('/login', function () { return view('auth.login'); })->name('login');
 Route::post('/login', [AuthController::class, 'login'])->name('login.process');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
@@ -126,3 +147,37 @@ Route::get('/api/inventories/get-units', [InventoryController::class, 'getUnitsF
 #PRODUCT UNIT DETAIL VIEW
 Route::get('inventories/{productUnit}', [InventoryController::class, 'show'])
      ->name('inventories.show');
+
+// Route untuk serve gambar katalog (public access)
+Route::get('/catalog/{filename}', function ($filename) {
+    $path = storage_path('app/public/catalog/' . $filename);
+    if (file_exists($path)) {
+        return response()->file($path, ['Content-Type' => 'image/png']);
+    }
+    abort(404);
+})->name('catalog.image');
+
+// Public route untuk detail produk (tanpa login, untuk QR code)
+Route::get('/product/{productUnit}', [InventoryController::class, 'publicShow'])
+    ->name('product.public.show');
+
+// API route untuk mendapatkan product ID dari product unit ID (untuk QR scanner)
+Route::get('/api/product-unit/{productUnit}', function ($productUnitId) {
+    $productUnit = \App\Models\ProductUnit::with(['product.color', 'product.type'])->find($productUnitId);
+
+    if (!$productUnit) {
+        return response()->json(['error' => 'Product unit not found'], 404);
+    }
+
+    return response()->json([
+        'id' => $productUnit->id,
+        'product_id' => $productUnit->product_id,
+        'name' => $productUnit->product->name . ' (' . $productUnit->name . ')',
+        'product_name' => $productUnit->product->name,
+        'unit_name' => $productUnit->name,
+        'color' => $productUnit->product->color ? $productUnit->product->color->name : '-',
+        'price' => $productUnit->price,
+        'stock' => $productUnit->stock,
+        'conversion_value' => $productUnit->conversion_value
+    ]);
+})->name('api.product-unit');
