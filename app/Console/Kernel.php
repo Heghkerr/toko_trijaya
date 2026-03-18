@@ -18,6 +18,11 @@ class Kernel extends ConsoleKernel
         $schedule->command('report:daily-whatsapp')
             ->dailyAt('15:00')
             ->timezone('Asia/Jakarta');
+
+        // Push notification stok (understock/overstock) - periodic
+        $schedule->command('stock:push-alert')
+            ->everyFiveMinutes()
+            ->timezone('Asia/Jakarta');
     }
 
     /**

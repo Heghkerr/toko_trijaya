@@ -20,6 +20,8 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\WhatsAppController;
 use App\Http\Controllers\RefundController;
 use App\Http\Controllers\PurchaseReturnController;
+use App\Http\Controllers\WhatsappOrderController;
+use App\Http\Controllers\PushSubscriptionController;
 
 
 
@@ -49,7 +51,15 @@ Route::get('/manifest.json', function () {
 
 // Service Worker
 Route::get('/service-worker.js', function () {
-    return response()->file(public_path('service-worker.js'), [
+    // Backward compatible: serve actual file name in /public
+    return response()->file(public_path('serviceworker.js'), [
+        'Content-Type' => 'application/javascript'
+    ]);
+});
+
+// Service Worker (actual filename used by layout)
+Route::get('/serviceworker.js', function () {
+    return response()->file(public_path('serviceworker.js'), [
         'Content-Type' => 'application/javascript'
     ]);
 });
@@ -84,6 +94,8 @@ Route::get('/reports/x', [ReportController::class, 'xReport'])->name('reports.x'
 Route::resource('transactions', TransactionController::class);
 Route::post('/transactions/add-fund', [TransactionController::class, 'addFund'])->name('transactions.addFund');
 Route::put('/transactions/{id}/mark-paid', [TransactionController::class, 'markPaid'])->name('transactions.markPaid');
+Route::put('/transactions/{id}/mark-sent', [TransactionController::class, 'markSent'])->name('transactions.markSent');
+Route::put('/transactions/{id}/mark-finished', [TransactionController::class, 'markFinished'])->name('transactions.markFinished');
 Route::get('transactions/{transaction}/receipt', [TransactionController::class, 'receipt'])
      ->name('transactions.receipt');
 
@@ -100,6 +112,12 @@ Route::post('/product-types', [ProductTypeController::class, 'store'])->name('pr
 #Cashflow
 
 Route::get('/cash-flow', [CashFlowController::class, 'index'])->name('cashflow.index');
+Route::post('/cash-flow/transfer', [CashFlowController::class, 'transfer'])->name('cashflow.transfer');
+
+// Whatsapp Orders
+Route::get('/whatsapp/orders', [WhatsappOrderController::class, 'index'])->name('whatsapp.orders.index');
+Route::get('/whatsapp/orders/{id}/process', [WhatsappOrderController::class, 'process'])->name('whatsapp.orders.process');
+Route::post('/whatsapp/orders/{id}/cancel', [WhatsappOrderController::class, 'cancel'])->name('whatsapp.orders.cancel');
 
 #Owner
 Route::middleware('check.owner')->group(function () {
@@ -133,6 +151,12 @@ Route::resource('customers', CustomerController::class);
 
 // WhatsApp Webhook (untuk menerima pesan masuk dari Fonnte)
 Route::post('/whatsapp/webhook', [WhatsAppController::class, 'webhook'])->name('whatsapp.webhook');
+
+// PWA Push Subscription (login required)
+Route::middleware('auth:web')->group(function () {
+    Route::post('/push/subscribe', [PushSubscriptionController::class, 'store'])->name('push.subscribe');
+    Route::post('/push/unsubscribe', [PushSubscriptionController::class, 'destroy'])->name('push.unsubscribe');
+});
 
 
 Route::resource('product_types', ProductTypeController::class);

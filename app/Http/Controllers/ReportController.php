@@ -80,7 +80,10 @@ class ReportController extends Controller
 
             $transactionQuery = Transaction::with(['details.product.units', 'user', 'refunds'])
                 ->whereBetween('created_at', [$startDate, $endDate])
-                ->whereIn('status', ['paid', 'completed']);
+                // Status transaksi online/offline terbaru:
+                // online: unpaid -> paid -> sent -> finished
+                // offline: unpaid -> finished (setelah dibayar)
+                ->whereIn('status', ['paid', 'sent', 'finished']);
 
             if ($request->filled('user_id')) {
                 $transactionQuery->where('user_id', $request->user_id);
@@ -258,7 +261,7 @@ class ReportController extends Controller
             $transactions = Transaction::with(['details.product.units', 'user'])
                 ->whereYear('created_at', $year)
                 ->whereMonth('created_at', $month)
-                ->whereIn('status', ['paid', 'completed'])
+                ->whereIn('status', ['paid', 'sent', 'finished'])
                 ->get();
             $refunds = Refund::with(['originalTransaction.user', 'user'])
                 ->whereYear('created_at', $year)

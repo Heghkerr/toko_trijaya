@@ -3,7 +3,7 @@
    Versi: 2.2.1
    ============================================================ */
 
-const CACHE_VERSION = "2.2.1";
+const CACHE_VERSION = "2.2.2";
 const staticCacheName = `pwa-trijaya-v${CACHE_VERSION}-static`;
 const dynamicCacheName = `pwa-trijaya-v${CACHE_VERSION}-data`;
 
@@ -170,8 +170,9 @@ self.addEventListener("fetch", event => {
 ============================================================ */
 
 try {
-    importScripts("https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js");
-    console.log("idb-keyval loaded");
+    // Prefer local copy to avoid install hangs when CDN is slow/unreachable
+    importScripts("/js/idb-keyval.min.js");
+    console.log("idb-keyval loaded (local)");
 } catch (e) {
     console.warn("Fallback idb-keyval");
     var idbKeyval = {
@@ -203,19 +204,75 @@ async function syncNewTransactions() {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                Accept: "application/json"
+                Accept: "application/json",
+                ...(data && data._csrf ? { "X-CSRF-TOKEN": data._csrf } : {}),
+                "X-Requested-With": "XMLHttpRequest"
             },
+            credentials: "include",
             body: JSON.stringify(data)
         }).catch(() => null);
 
         if (!response || !response.ok) {
             console.log("SW: Sync failed, retry later");
+            // Jangan drop queue; biarkan untuk retry nanti
             return;
         }
 
         queue.shift();
+        await set("pending-transactions", queue, transactionStore);
     }
 
-    await set("pending-transactions", queue, transactionStore);
     console.log("SW: Sync completed!");
 }
+
+/* ============================================================
+   WEB PUSH NOTIFICATION HANDLERS
+============================================================ */
+
+self.addEventListener('push', event => {
+    let data = {};
+    try {
+        data = event.data ? event.data.json() : {};
+    } catch (e) {
+        data = { body: event.data ? event.data.text() : '' };
+    }
+
+    const title = data.title || 'Toko Trijaya';
+    const iconUrl = new URL('images/icons/icon-192x192.png', self.registration.scope).toString();
+    const badgeUrl = new URL('images/icons/icon-96x96.png', self.registration.scope).toString();
+    const options = {
+        body: data.body || '',
+        icon: iconUrl,
+        badge: badgeUrl,
+        tag: data.tag || 'toko-trijaya',
+        renotify: true,
+        data: {
+            url: data.url || '/dashboard'
+        }
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', event => {
+    event.notification.close();
+    const targetUrl = event.notification?.data?.url || '/dashboard';
+
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+            for (const client of clientList) {
+                if ('focus' in client) {
+                    // Focus existing tab and navigate if needed
+                    return client.focus().then(() => {
+                        if ('navigate' in client && client.url !== targetUrl) {
+                            return client.navigate(targetUrl);
+                        }
+                    });
+                }
+            }
+            if (clients.openWindow) {
+                return clients.openWindow(targetUrl);
+            }
+        })
+    );
+});

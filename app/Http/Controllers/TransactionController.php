@@ -48,13 +48,9 @@ class TransactionController extends Controller
             ->withQueryString();
 
         $cashiers = User::orderBy('name', 'asc')->get();
-        $today = now()->toDateString();
-
-        $kasMasuk = CashFlow::where(['flow_type' => 'masuk', 'account'   => 'cash'])
-            ->whereDate('created_at', $today)->sum('amount');
-        $kasKeluar = CashFlow::where(['flow_type' => 'keluar', 'account'   => 'cash'])
-            ->whereDate('created_at', $today)->sum('amount');
-        $kasSaatIni = $kasMasuk - $kasKeluar;
+        // Kas saat ini = saldo berjalan kas tunai (tidak reset harian)
+        $kasSaatIni = CashFlow::where('account', 'cash')
+            ->sum(DB::raw("CASE WHEN flow_type = 'masuk' THEN amount ELSE -amount END"));
 
         return view('transactions.index', compact('transactions', 'cashiers','kasSaatIni'));
     }
@@ -102,7 +98,17 @@ class TransactionController extends Controller
         $productColors = ProductColor::orderBy('name', 'asc')->get();
         $customers = \App\Models\Customer::orderBy('name', 'asc')->get();
 
-        return view('transactions.create', compact('productUnits', 'productTypes', 'productColors', 'customers', 'hasFilter'));
+        // Check if there's WhatsApp order data from session
+        $whatsappOrderData = session()->get('whatsapp_order_data');
+
+        return view('transactions.create', compact(
+            'productUnits',
+            'productTypes',
+            'productColors',
+            'customers',
+            'hasFilter',
+            'whatsappOrderData'
+        ));
     }
 
 
@@ -121,7 +127,7 @@ class TransactionController extends Controller
             'payment_method'  => 'required|string|in:cash,card,qris',
             'cash_amount'     => $request->payment_method === 'cash' ? 'required|numeric|min:0' : 'nullable',
             'discount_amount' => 'nullable|numeric|min:0',
-            'status'          => 'required|string|in:unpaid,paid',
+            'status'          => 'required|string|in:unpaid,paid,sent,finished',
             'cart_items'      => 'required|array|min:1', // Menggantikan 'products'
             'cart_items.*.id' => 'required|integer', // Ini adalah ProductUnit ID
             'cart_items.*.product_id' => 'required|integer',
@@ -305,6 +311,18 @@ class TransactionController extends Controller
             //     else if ($validated['payment_method'] == 'card') $report->increment('card_amount', $totalAmount);
             //     else if ($validated['payment_method'] == 'qris') $report->increment('qris_amount', $totalAmount);
             // }
+
+            // Update status WhatsApp order jika transaksi berasal dari WhatsApp
+            $whatsappOrderData = session()->get('whatsapp_order_data');
+            if ($whatsappOrderData && isset($whatsappOrderData['order_id'])) {
+                $whatsappOrder = \App\Models\WhatsappOrder::find($whatsappOrderData['order_id']);
+                if ($whatsappOrder) {
+                    $whatsappOrder->update(['status' => 'processed']);
+                    Log::info('WhatsApp order status updated to processed', ['order_id' => $whatsappOrder->id]);
+                }
+                // Clear session setelah diproses
+                session()->forget('whatsapp_order_data');
+            }
 
             DB::commit();
 
@@ -618,7 +636,7 @@ class TransactionController extends Controller
         DB::beginTransaction();
 
         try {
-            $transaction = Transaction::with('details.product')->findOrFail($id);
+            $transaction = Transaction::with('details.product', 'whatsappOrder')->findOrFail($id);
 
             if ($transaction->status === 'paid') {
                 return redirect()->back()->with('info', 'Transaksi ini sudah dibayar.');
@@ -723,17 +741,35 @@ class TransactionController extends Controller
             }
 
             // 5. Update status transaksi
-            $transaction->status = 'paid';
+            // Check apakah transaksi online (dari WhatsApp) atau offline
+            $isOnlineTransaction = $transaction->customer && str_contains($transaction->customer->name, '(WhatsApp)');
+
+            if ($isOnlineTransaction) {
+                // Transaksi online: unpaid → paid (nanti bisa diubah ke sent → finished)
+                $transaction->status = 'paid';
+                $successMessage = 'Transaksi online telah dibayar! Status: PAID. Selanjutnya ubah status menjadi SENT setelah barang dikirim.';
+            } else {
+                // Transaksi offline: unpaid → finished (langsung selesai)
+                $transaction->status = 'finished';
+                $successMessage = 'Transaksi offline telah dibayar dan selesai! Status: FINISHED.';
+            }
+
             $transaction->save();
+
+            // Update WhatsApp order status to 'processed' when transaction is paid
+            if ($transaction->whatsappOrder && $transaction->whatsappOrder->status === 'confirmed') {
+                $transaction->whatsappOrder->update(['status' => 'processed']);
+            }
 
             // 6. Kirim nota ke WhatsApp customer jika ada
             $this->sendReceiptToWhatsApp($transaction);
 
             DB::commit();
 
-            // return redirect()->route('transactions.index')->with('success', 'Transaksi telah dibayar dan stok diperbarui!');
-            return redirect()->route('transactions.receipt', $transaction->id)
-                         ->with('print_confirmation');
+            // Redirect ke index, tapi buka receipt di tab baru via JavaScript
+            return redirect()->route('transactions.index')
+                         ->with('success', $successMessage)
+                         ->with('open_receipt', route('transactions.receipt', $transaction->id));
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -747,6 +783,69 @@ class TransactionController extends Controller
 
         // Kembalikan view 'receipt', BUKAN 'show'
         return view('transactions.receipt', compact('transaction'));
+    }
+
+    /**
+     * Update status transaksi online ke SENT
+     */
+    public function markSent($id)
+    {
+        try {
+            $transaction = Transaction::with('customer', 'whatsappOrder')->findOrFail($id);
+
+            // Validate: harus status paid dan transaksi online
+            if ($transaction->status !== 'paid') {
+                return redirect()->back()->with('error', 'Hanya transaksi dengan status PAID yang bisa diubah ke SENT.');
+            }
+
+            $isOnline = $transaction->customer && str_contains($transaction->customer->name, '(WhatsApp)');
+            if (!$isOnline) {
+                return redirect()->back()->with('error', 'Hanya transaksi online yang bisa diubah ke status SENT.');
+            }
+
+            $transaction->status = 'sent';
+            $transaction->save();
+
+            // Update WhatsApp order status to 'sent' if exists
+            if ($transaction->whatsappOrder) {
+                $transaction->whatsappOrder->update(['status' => 'sent']);
+            }
+
+            return redirect()->back()->with('success', 'Status transaksi berubah menjadi SENT. Barang dalam pengiriman.');
+
+        } catch (\Exception $e) {
+            Log::error('Error marking transaction as sent: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Gagal mengubah status: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update status transaksi online ke FINISHED
+     */
+    public function markFinished($id)
+    {
+        try {
+            $transaction = Transaction::with('whatsappOrder')->findOrFail($id);
+
+            // Validate: harus status sent
+            if ($transaction->status !== 'sent') {
+                return redirect()->back()->with('error', 'Hanya transaksi dengan status SENT yang bisa diubah ke FINISHED.');
+            }
+
+            $transaction->status = 'finished';
+            $transaction->save();
+
+            // Update WhatsApp order status to 'done' if exists
+            if ($transaction->whatsappOrder) {
+                $transaction->whatsappOrder->update(['status' => 'done']);
+            }
+
+            return redirect()->back()->with('success', 'Transaksi selesai! Status: FINISHED.');
+
+        } catch (\Exception $e) {
+            Log::error('Error marking transaction as finished: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Gagal mengubah status: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -827,8 +926,8 @@ class TransactionController extends Controller
             $nota .= "Pembayaran via: {$paymentMethod}\n";
         }
 
-        $nota .= "Status: *" . strtoupper($transaction->status === 'paid' ? 'LUNAS' : 'BELUM LUNAS') . "*";
-
+        $isLunas = in_array($transaction->status, ['paid', 'finished'], true);
+        $nota .= "Status: *" . ($isLunas ? 'LUNAS' : 'BELUM LUNAS') . "*";
         return $nota;
     }
 }

@@ -36,4 +36,11 @@ return [
         'owner_phone' => env('OWNER_PHONE'),
     ],
 
+    'webpush' => [
+        'vapid_public_key' => env('VAPID_PUBLIC_KEY'),
+        'vapid_private_key' => env('VAPID_PRIVATE_KEY'),
+        // recommended: mailto:you@domain.com or https://your-domain
+        'vapid_subject' => env('VAPID_SUBJECT', env('APP_URL')),
+    ],
+
 ];

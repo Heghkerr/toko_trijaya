@@ -1,0 +1,344 @@
+// ERD Database Toko Trijaya
+// Sistem Point of Sale dengan Inventory Management
+// Generated: December 2025
+
+Project toko_trijaya {
+  database_type: 'MySQL'
+  Note: 'ERD untuk Sistem POS Toko Trijaya'
+}
+
+// ==================== USER MANAGEMENT ====================
+Table users as U {
+  id bigint [pk, increment, note: 'Primary Key']
+  name varchar(255) [not null]
+  email varchar(255) [unique, not null]
+  role varchar(20) [default: 'admin', note: 'admin atau owner']
+  password varchar(255) [not null]
+  photo text [null]
+  remember_token varchar(100) [null]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Tabel user untuk kasir/admin dan owner'
+}
+
+// ==================== MASTER DATA ====================
+Table product_types as PT {
+  id bigint [pk, increment]
+  name varchar(255) [not null]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Master kategori/tipe produk'
+}
+
+Table product_colors as PC {
+  id bigint [pk, increment]
+  name varchar(255) [not null]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Master warna produk'
+}
+
+Table suppliers as SUP {
+  id bigint [pk, increment]
+  name varchar(255) [not null]
+  phone varchar(50) [null]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Data supplier/pemasok barang'
+}
+
+Table customers as CUST {
+  id bigint [pk, increment]
+  name varchar(255) [not null]
+  phone varchar(50) [null]
+  address text [null]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Data pelanggan/customer'
+}
+
+// ==================== PRODUCT CATALOG ====================
+Table products as P {
+  id bigint [pk, increment]
+  name varchar(255) [not null]
+  price decimal(10,2) [not null]
+  description text [null]
+  type varchar(100) [null]
+  weight varchar(100) [null]
+  image text [null]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Katalog produk utama'
+}
+
+Table product_units as PU {
+  id bigint [pk, increment]
+  product_id bigint [not null]
+  name varchar(255) [not null, note: 'Nama satuan: pcs, box, karton, dll']
+  conversion_value decimal(10,2) [default: 1, note: 'Nilai konversi ke satuan terkecil']
+  price decimal(10,2) [not null]
+  stock int [default: 0]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Satuan unit produk - satu produk bisa memiliki banyak unit'
+}
+
+// ==================== PURCHASE/PEMBELIAN ====================
+Table purchases as PURCH {
+  id bigint [pk, increment]
+  purchase_code varchar(50) [unique, not null]
+  supplier_id bigint [null]
+  user_id bigint [null]
+  total_amount decimal(15,2) [default: 0]
+  delivery_cost decimal(15,2) [default: 0]
+  status varchar(20) [default: 'pending', note: 'pending, completed, cancelled']
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Header transaksi pembelian dari supplier'
+}
+
+Table purchase_details as PURCH_DTL {
+  id bigint [pk, increment]
+  purchase_id bigint [not null]
+  product_id bigint [not null]
+  quantity int [default: 1]
+  price decimal(10,2) [not null]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Detail item pembelian'
+}
+
+Table purchase_returns as PURCH_RET {
+  id bigint [pk, increment]
+  return_code varchar(50) [unique, not null]
+  purchase_id bigint [not null]
+  supplier_id bigint [null]
+  user_id bigint [null]
+  return_date date [not null]
+  total_amount decimal(15,2) [default: 0]
+  notes text [null]
+  status varchar(20) [default: 'pending', note: 'pending, completed, cancelled']
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Header retur pembelian ke supplier'
+}
+
+Table purchase_return_details as PURCH_RET_DTL {
+  id bigint [pk, increment]
+  purchase_return_id bigint [not null]
+  product_id bigint [not null]
+  quantity int [default: 1]
+  cost_price decimal(10,2) [not null]
+  subtotal decimal(15,2) [default: 0]
+
+  Note: 'Detail item retur pembelian'
+}
+
+// ==================== SALES/PENJUALAN ====================
+Table transactions as TRX {
+  id bigint [pk, increment]
+  transaction_code varchar(20) [unique, not null]
+  user_id bigint [null]
+  customer_id bigint [null]
+  total_amount decimal(10,2) [not null]
+  discount decimal(15,2) [default: 0]
+  change_amount decimal(15,2) [default: 0]
+  payment_method varchar(20) [not null, note: 'cash, card, qris']
+  cash_amount decimal(15,2) [null]
+  status varchar(20) [default: 'unpaid', note: 'unpaid, paid, sent, finished']
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Transaksi penjualan/kasir'
+}
+
+Table transaction_details as TRX_DTL {
+  id bigint [pk, increment]
+  transaction_id bigint [not null]
+  product_id bigint [not null]
+  unit_name varchar(255) [not null]
+  quantity int [default: 1]
+  price decimal(10,2) [not null]
+  subtotal decimal(15,2) [default: 0]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Detail item dalam transaksi penjualan'
+}
+
+// ==================== REFUND/PENGEMBALIAN ====================
+Table refunds as REF {
+  id bigint [pk, increment]
+  transaction_id bigint [not null]
+  user_id bigint [not null]
+  total_refund decimal(14,2) [default: 0]
+  reason text [null]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Header refund/pengembalian barang dari customer'
+}
+
+Table refund_details as REF_DTL {
+  id bigint [pk, increment]
+  refund_id bigint [not null]
+  transaction_detail_id bigint [null]
+  product_id bigint [not null]
+  quantity int [default: 1]
+  unit_price decimal(14,2) [default: 0]
+  subtotal decimal(14,2) [default: 0]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Detail item yang di-refund'
+}
+
+// ==================== INVENTORY ====================
+Table stok_barang as STK {
+  id bigint [pk, increment]
+  product_id bigint [not null]
+  product_unit_id bigint [null]
+  quantity int [not null]
+  type varchar(10) [default: 'masuk', note: 'masuk atau keluar']
+  user_id bigint [null]
+  description text [null]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Log pergerakan stok barang (stock movement)'
+}
+
+// ==================== CASH FLOW ====================
+Table cash_flows as CF {
+  id bigint [pk, increment]
+  user_id bigint [null]
+  source_type varchar(50) [null]
+  flow_type varchar(10) [not null, note: 'masuk atau keluar']
+  account varchar(100) [null]
+  amount decimal(15,2) [not null]
+  description text [null]
+  transaction_id bigint [null]
+  purchase_id bigint [null]
+  date date [not null]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Pencatatan arus kas masuk dan keluar'
+}
+
+// ==================== WHATSAPP INTEGRATION ====================
+Table whatsapp_orders as WA_ORD {
+  id bigint [pk, increment]
+  name varchar(255) [not null]
+  phone varchar(255) [not null]
+  order_text text [not null]
+  status varchar(20) [default: 'pending', note: 'pending, confirmed, cancelled']
+  items json [null]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Pesanan yang masuk dari WhatsApp chatbot'
+}
+
+Table whatsapp_order_items as WA_ORD_ITM {
+  id bigint [pk, increment]
+  whatsapp_order_id bigint [not null]
+  product_id bigint [not null]
+  color_id bigint [null]
+  product_unit_id bigint [null]
+  quantity int [default: 1]
+  stock_pcs int [default: 0, note: 'Snapshot stok saat pesanan dibuat']
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Detail item pesanan WhatsApp'
+}
+
+// ==================== PUSH NOTIFICATION ====================
+Table push_subscriptions as PUSH {
+  id bigint [pk, increment]
+  user_id bigint [not null]
+  endpoint text [not null]
+  p256dh text [not null]
+  auth text [not null]
+  user_agent varchar(255) [null]
+  last_notified_at timestamp [null]
+  created_at timestamp
+  updated_at timestamp
+
+  Note: 'Subscription untuk Web Push Notifications'
+}
+
+// ==================== RELATIONSHIPS ====================
+
+// Product Units -> Products
+Ref: PU.product_id > P.id [delete: cascade]
+
+// Purchases
+Ref: PURCH.supplier_id > SUP.id [delete: set null]
+Ref: PURCH.user_id > U.id [delete: set null]
+
+// Purchase Details
+Ref: PURCH_DTL.purchase_id > PURCH.id [delete: cascade]
+Ref: PURCH_DTL.product_id > P.id [delete: restrict]
+
+// Purchase Returns
+Ref: PURCH_RET.purchase_id > PURCH.id [delete: cascade]
+Ref: PURCH_RET.supplier_id > SUP.id [delete: set null]
+Ref: PURCH_RET.user_id > U.id [delete: set null]
+
+// Purchase Return Details
+Ref: PURCH_RET_DTL.purchase_return_id > PURCH_RET.id [delete: cascade]
+Ref: PURCH_RET_DTL.product_id > P.id [delete: restrict]
+
+// Transactions
+Ref: TRX.user_id > U.id [delete: set null]
+Ref: TRX.customer_id > CUST.id [delete: set null]
+
+// Transaction Details
+Ref: TRX_DTL.transaction_id > TRX.id [delete: cascade]
+Ref: TRX_DTL.product_id > P.id [delete: restrict]
+
+// Refunds
+Ref: REF.transaction_id > TRX.id [delete: cascade]
+Ref: REF.user_id > U.id [delete: restrict]
+
+// Refund Details
+Ref: REF_DTL.refund_id > REF.id [delete: cascade]
+Ref: REF_DTL.transaction_detail_id > TRX_DTL.id [delete: set null]
+Ref: REF_DTL.product_id > P.id [delete: restrict]
+
+// Stock Movement
+Ref: STK.product_id > P.id [delete: cascade]
+Ref: STK.product_unit_id > PU.id [delete: set null]
+Ref: STK.user_id > U.id [delete: set null]
+
+// Cash Flows
+Ref: CF.user_id > U.id [delete: set null]
+Ref: CF.transaction_id > TRX.id [delete: set null]
+Ref: CF.purchase_id > PURCH.id [delete: set null]
+
+// WhatsApp Orders
+Ref: WA_ORD_ITM.whatsapp_order_id > WA_ORD.id [delete: cascade]
+Ref: WA_ORD_ITM.product_id > P.id [delete: cascade]
+Ref: WA_ORD_ITM.color_id > PC.id [delete: set null]
+Ref: WA_ORD_ITM.product_unit_id > PU.id [delete: cascade]
+
+// Push Subscriptions
+Ref: PUSH.user_id > U.id [delete: cascade]
+
+
+
+
+
+

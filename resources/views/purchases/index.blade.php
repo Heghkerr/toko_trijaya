@@ -102,8 +102,30 @@
             </table>
         </div>
 
-        <div class="d-flex justify-content-center">
-            {{ $purchases->links() }}
+        <div class="mt-3">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+
+                    <li class="page-item @if($purchases->onFirstPage()) disabled @endif">
+                    <a class="page-link" href="{{ $purchases->previousPageUrl() }}" aria-label="Previous">
+                        <span aria-hidden="true">&laquo; Previous</span>
+                    </a>
+                    </li>
+
+                    <li class="page-item @if(!$purchases->hasMorePages()) disabled @endif">
+                    <a class="page-link" href="{{ $purchases->nextPageUrl() }}" aria-label="Next">
+                        <span aria-hidden="true">Next &raquo;</span>
+                    </a>
+                    </li>
+
+                </ul>
+            </nav>
+
+            <div class="mt-2 text-muted text-center">
+                Showing {{ $purchases->firstItem() ?? 0 }}
+                to {{ $purchases->lastItem() ?? 0 }}
+                of {{ $purchases->total() }} results
+            </div>
         </div>
     </div>
 </div>

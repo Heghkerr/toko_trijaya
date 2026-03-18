@@ -366,6 +366,202 @@
         </div>
     </div>
 </div>
+
+@push('styles')
+<style>
+    /* Fix z-index issues for mobile sidebar */
+    .table-responsive {
+        position: relative;
+        z-index: 1;
+    }
+
+    .card {
+        position: relative;
+        z-index: 1;
+    }
+
+    /* Ensure dropdown menus work properly */
+    .dropdown-menu {
+        z-index: 1050;
+    }
+
+    /* Mobile Responsive Improvements for Transaction Page */
+    @media (max-width: 768px) {
+        /* Fix z-index for mobile - sidebar should be on top */
+        .main-content {
+            position: relative;
+            z-index: 1 !important;
+        }
+
+        .card,
+        .table-responsive {
+            position: relative;
+            z-index: 1 !important;
+        }
+
+        /* Ensure sidebar is always on top when opened */
+        .sidebar {
+            z-index: 1040 !important;
+        }
+
+        .sidebar-show {
+            z-index: 1040 !important;
+        }
+
+        /* Make search and filter section stack vertically */
+        .card-body .input-group {
+            margin-bottom: 0.75rem;
+        }
+
+        .d-flex.gap-2 {
+            gap: 0.5rem !important;
+        }
+
+        /* Product list table improvements */
+        #productList {
+            font-size: 0.8rem;
+        }
+
+        #productList th,
+        #productList td {
+            padding: 0.5rem 0.3rem;
+        }
+
+        #productList .btn-sm {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.7rem;
+        }
+
+        /* Cart/Selected products table */
+        #selectedProductsTable {
+            font-size: 0.8rem;
+        }
+
+        #selectedProductsTable th,
+        #selectedProductsTable td {
+            padding: 0.4rem 0.25rem;
+        }
+
+        #selectedProductsTable .btn-sm {
+            padding: 0.2rem 0.4rem;
+            font-size: 0.7rem;
+        }
+
+        /* Summary section */
+        .list-group-item {
+            padding: 0.6rem 0.8rem;
+            font-size: 0.85rem;
+        }
+
+        .list-group-item strong {
+            font-size: 0.9rem;
+        }
+
+        /* Payment buttons */
+        .btn-payment {
+            padding: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        /* Modal adjustments */
+        .modal-body {
+            padding: 1rem;
+        }
+
+        .modal-body input,
+        .modal-body select {
+            font-size: 0.9rem;
+        }
+
+        /* Form labels */
+        .form-label {
+            font-size: 0.85rem;
+        }
+
+        /* Badge in product list */
+        .badge {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.4rem;
+        }
+
+        /* Dropdown items */
+        .dropdown-menu {
+            font-size: 0.85rem;
+        }
+
+        .dropdown-item {
+            padding: 0.4rem 1rem;
+        }
+
+        /* Quick cash buttons if any */
+        .btn-group .btn {
+            padding: 0.375rem 0.6rem;
+            font-size: 0.8rem;
+        }
+
+        /* Customer section */
+        #customerSection .card-body {
+            padding: 0.75rem;
+        }
+
+        /* Scanner video */
+        #transactionScannerVideo,
+        #productScannerVideo {
+            max-height: 250px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        /* Extra small devices */
+        .card-header h6 {
+            font-size: 0.85rem;
+        }
+
+        #productList,
+        #selectedProductsTable {
+            font-size: 0.7rem;
+        }
+
+        #productList th,
+        #productList td,
+        #selectedProductsTable th,
+        #selectedProductsTable td {
+            padding: 0.3rem 0.2rem;
+        }
+
+        .btn-sm {
+            padding: 0.2rem 0.4rem;
+            font-size: 0.65rem;
+        }
+
+        .list-group-item {
+            padding: 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        .form-control,
+        .form-select {
+            font-size: 0.85rem;
+        }
+
+        /* Hide some columns on very small screens */
+        #productList th:nth-child(4),
+        #productList td:nth-child(4) {
+            display: none; /* Hide color column */
+        }
+    }
+
+    /* Landscape mode on mobile */
+    @media (max-width: 768px) and (orientation: landscape) {
+        .row.mb-4 > .col-md-5,
+        .row.mb-4 > .col-md-7 {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+    }
+</style>
+@endpush
+
 @endsection
 
 {{-- Script transaksi & scanner ditempatkan di bagian bawah file --}}
@@ -564,6 +760,69 @@
         sessionStorage.removeItem('transactionCartState');
         console.log('Transaksi baru saja berhasil, clear state');
     }
+
+    // ======================================================
+    // AUTO-LOAD DATA DARI WHATSAPP ORDER (jika ada)
+    // ======================================================
+    @if(isset($whatsappOrderData) && !empty($whatsappOrderData))
+        console.log('WhatsApp Order Data detected:', @json($whatsappOrderData));
+
+        // Load customer data
+        @if(isset($whatsappOrderData['customer_id']))
+            if (window.customerSelect) {
+                window.customerSelect.setValue({{ $whatsappOrderData['customer_id'] }});
+            }
+        @elseif(isset($whatsappOrderData['customer_name']))
+            if (window.customerSelect) {
+                window.customerSelect.setValue('{{ $whatsappOrderData['customer_name'] }}');
+                $('#select-customer').attr('data-new-customer', '{{ $whatsappOrderData['customer_name'] }}');
+            }
+        @endif
+
+        @if(isset($whatsappOrderData['customer_phone']))
+            $('#select-phone').val('{{ $whatsappOrderData['customer_phone'] }}');
+        @endif
+
+        // Load order items ke cart
+        @if(isset($whatsappOrderData['items']) && !empty($whatsappOrderData['items']))
+            const whatsappItems = @json($whatsappOrderData['items']);
+            console.log('Loading WhatsApp items to cart:', whatsappItems);
+
+            // Load items ke selectedProducts array
+            whatsappItems.forEach(function(item) {
+                selectedProducts.push({
+                    id: item.unit_id,
+                    product_id: item.product_id,
+                    name: item.product_name + ' (' + item.unit_name + ')',
+                    color: item.color_name || '-',
+                    unit_name: item.unit_name,
+                    price: item.price,
+                    quantity: item.quantity,
+                    subtotal: item.price * item.quantity,
+                    stock_awal: 9999, // Set high untuk WhatsApp order
+                    conversion: item.conversion
+                });
+            });
+
+            // Update tampilan setelah 1 detik (tunggu DOM ready)
+            setTimeout(function() {
+                updateSelectedProductsTable();
+                console.log('WhatsApp cart loaded successfully');
+
+                // Tampilkan alert sukses
+                if (!$('.alert-info-whatsapp').length) {
+                    $('.card-body').first().prepend(`
+                        <div class="alert alert-info alert-info-whatsapp alert-dismissible fade show" role="alert">
+                            <i class="bi bi-whatsapp me-2"></i>
+                            <strong>Data dari WhatsApp Order #{{ $whatsappOrderData['order_id'] ?? '' }}</strong>
+                            <br><small>Customer dan produk telah dimuat otomatis. Silakan selesaikan transaksi.</small>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    `);
+                }
+            }, 1000);
+        @endif
+    @endif
 
     // Coba restore segera setelah document ready (jika TomSelect belum siap, akan dicoba lagi nanti)
     setTimeout(function() {
@@ -1246,6 +1505,13 @@
     // --- BACKGROUND SYNC ---
     // 9. Fungsi untuk menyimpan data ke IndexedDB
     async function saveTransactionForLater(data) {
+        // Simpan CSRF token agar Background Sync dari Service Worker bisa POST ke route web Laravel
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (csrf) {
+            data._csrf = csrf;
+        }
+        data._queued_at = new Date().toISOString();
+
         let queue = await get('pending-transactions', transactionStore) || [];
         queue.push(data);
         await set('pending-transactions', queue, transactionStore);

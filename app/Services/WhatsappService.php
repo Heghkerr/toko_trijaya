@@ -36,7 +36,7 @@ class WhatsappService
             ])->post('https://api.fonnte.com/send', [
                 'target' => $target,
                 'message' => $message,
-                'countryCode' => '62', // Fonnte akan otomatis format 08... jadi 628...
+                'countryCode' => '62', 
             ]);
 
             // 3. Catat ke Log (Bagus untuk debug)

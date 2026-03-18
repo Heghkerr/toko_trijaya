@@ -236,6 +236,72 @@
     window.addEventListener('online', checkSyncStatus);
 
     // ============================================
+    // 4b. MANUAL SYNC (Fallback) - run on ANY page
+    // ============================================
+    // Background Sync kadang tidak terpanggil di beberapa device/browser.
+    // Jadi kita paksa sync queue ketika online agar tidak "menunggu terus".
+    async function manualSyncPendingTransactionsGlobal() {
+        if (!navigator.onLine) return;
+
+        try {
+            if (typeof idbKeyval === 'undefined') return;
+            const { get, set, createStore } = idbKeyval;
+            const transactionStore = createStore('toko-trijaya-db', 'pending-transactions');
+            let queue = await get('pending-transactions', transactionStore) || [];
+            if (!Array.isArray(queue) || queue.length === 0) return;
+
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            if (!csrf) return;
+
+            // Update UI indicator (optional)
+            if (syncIndicator) {
+                syncIndicator.style.display = 'block';
+                syncIndicator.textContent = `${queue.length} transaksi menunggu sinkronisasi`;
+            }
+
+            while (queue.length > 0) {
+                const data = queue[0];
+                const res = await fetch('/transactions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrf,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(data)
+                }).catch(() => null);
+
+                if (!res || !res.ok) {
+                    // Stop and retry later (don't drop queue)
+                    break;
+                }
+
+                queue.shift();
+                await set('pending-transactions', queue, transactionStore);
+
+                if (syncIndicator) {
+                    if (queue.length > 0) {
+                        syncIndicator.style.display = 'block';
+                        syncIndicator.textContent = `${queue.length} transaksi menunggu sinkronisasi`;
+                    } else {
+                        syncIndicator.style.display = 'none';
+                    }
+                }
+            }
+        } catch (e) {
+            // silently fail
+        }
+    }
+
+    // Run on load (if online) and on every online event
+    if (navigator.onLine) {
+        manualSyncPendingTransactionsGlobal();
+    }
+    window.addEventListener('online', manualSyncPendingTransactionsGlobal);
+
+    // ============================================
     // 5. REQUEST NOTIFICATION PERMISSION
     // ============================================
     function requestNotificationPermission() {
@@ -244,9 +310,93 @@
         }
     }
 
-    // Request permission after user interaction (optional)
-    // Uncomment if you want to request permission automatically
-    // document.addEventListener('click', requestNotificationPermission, { once: true });
+    // ============================================
+    // 5b. PUSH SUBSCRIPTION (Web Push)
+    // ============================================
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+    }
+
+    async function ensurePushSubscription() {
+        // Only for logged-in pages (meta user-id exists)
+        const userId = document.querySelector('meta[name="user-id"]')?.content;
+        if (!userId) return;
+
+        if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+
+        const vapidPublicKey = document.querySelector('meta[name="vapid-public-key"]')?.content;
+        if (!vapidPublicKey) return; // not configured
+
+        const basePathMeta = document.querySelector('meta[name="app-base-path"]')?.content || '';
+        const basePath = basePathMeta.endsWith('/') ? basePathMeta.slice(0, -1) : basePathMeta;
+        const swUrl = (basePath ? basePath : '') + '/serviceworker.js';
+        const subscribeUrl = (basePath ? basePath : '') + '/push/subscribe';
+
+        // Ensure we have a SW registration (some pages/devices might not be controlled yet)
+        let registration = await navigator.serviceWorker.getRegistration();
+        if (!registration) {
+            // Fallback: register using the known file in public root
+            // (layout already registers too, this is just a safety net)
+            registration = await navigator.serviceWorker.register(swUrl, { scope: (basePath ? (basePath + '/') : '/') });
+        }
+
+        // Ask permission if needed
+        if (Notification.permission === 'default') {
+            const result = await Notification.requestPermission();
+            if (result !== 'granted') return;
+        }
+        if (Notification.permission !== 'granted') return;
+
+        // Wait until SW is ready (active)
+        await navigator.serviceWorker.ready;
+
+        let subscription = await registration.pushManager.getSubscription();
+        if (!subscription) {
+            subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+            });
+        }
+
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (!csrf) return;
+
+        const res = await fetch(subscribeUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                subscription: subscription.toJSON(),
+                user_agent: navigator.userAgent
+            })
+        }).catch(() => null);
+
+        if (!res || !res.ok) {
+            console.warn('[PWA Push] subscribe failed', res ? res.status : 'no_response');
+            return;
+        }
+
+        localStorage.setItem('pwa-push-subscribed', 'true');
+    }
+
+    // Trigger on first user interaction to satisfy browser requirements
+    document.addEventListener('click', () => {
+        // Avoid re-running constantly
+        if (localStorage.getItem('pwa-push-subscribed') === 'true') return;
+        ensurePushSubscription().catch(() => null);
+    }, { once: true });
 
     // ============================================
     // 6. PWA INSTALLED DETECTION

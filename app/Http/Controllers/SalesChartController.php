@@ -34,7 +34,9 @@ class SalesChartController extends Controller
             ->whereHas('transaction', function($q) use ($month, $year) {
                 $q->whereMonth('created_at', $month)
                   ->whereYear('created_at', $year)
-                  ->whereIn('status', ['paid', 'completed']); // Pastikan hanya transaksi lunas
+                  // Pastikan hanya transaksi lunas (status terbaru: paid -> sent -> finished)
+                  // Catatan: 'completed/closed' dipertahankan untuk kompatibilitas data lama.
+                  ->whereIn('status', ['paid', 'sent', 'finished', 'completed', 'closed']);
             })
             // [PERBAIKAN] Grup berdasarkan nama produk, nama warna, dan unit
             ->groupBy('products.id', 'products.name', 'product_colors.name', 'transaction_details.unit_name')

@@ -321,6 +321,7 @@ document.addEventListener('DOMContentLoaded', function() {
     .border-left-success { border-left: 0.25rem solid #1cc88a !important; }
     /* STYLE BARU UNTUK ALERT */
     .border-left-danger { border-left: 0.25rem solid #dc3545 !important; }
+    .border-left-warning { border-left: 0.25rem solid #ffc107 !important; }
     .text-xs { font-size: 0.7rem; }
     .text-uppercase { letter-spacing: 0.1em; }
     /* Style untuk product name dengan warna */
@@ -331,6 +332,93 @@ document.addEventListener('DOMContentLoaded', function() {
     .product-name.text-warning {
         color: #f39c12 !important;
         font-weight: 600;
+    }
+
+    /* Mobile Responsive Improvements */
+    @media (max-width: 768px) {
+        .card-header h5,
+        .card-header .h5 {
+            font-size: 0.95rem;
+        }
+
+        .card-header .badge {
+            font-size: 0.75rem;
+            padding: 0.3rem 0.5rem;
+        }
+
+        .table-responsive {
+            border: none;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .table td,
+        .table th {
+            font-size: 0.8rem;
+            padding: 0.5rem 0.4rem;
+        }
+
+        /* Badge dalam alert */
+        .badge {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.4rem;
+            margin: 0.2rem;
+            display: inline-block;
+        }
+
+        /* Stat cards */
+        .border-left-primary,
+        .border-left-success,
+        .border-left-danger,
+        .border-left-warning {
+            border-left-width: 0.2rem !important;
+        }
+
+        .card.shadow {
+            margin-bottom: 0.75rem;
+        }
+
+        .h5.mb-0 {
+            font-size: 0.9rem !important;
+        }
+
+        /* Chart container */
+        .card-body canvas {
+            max-height: 180px !important;
+        }
+
+        /* Alert heading */
+        .alert .h5 {
+            font-size: 0.9rem;
+        }
+
+        .alert .text-xs {
+            font-size: 0.65rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .card-header h5 {
+            font-size: 0.85rem;
+        }
+
+        .table td,
+        .table th {
+            font-size: 0.7rem;
+            padding: 0.4rem 0.3rem;
+        }
+
+        .h5 {
+            font-size: 0.85rem !important;
+        }
+
+        .text-xs {
+            font-size: 0.6rem;
+        }
+
+        .badge {
+            font-size: 0.65rem;
+            padding: 0.2rem 0.35rem;
+        }
     }
 </style>
 @endsection

@@ -2,6 +2,27 @@
 
 @section('title', 'Detail Transaksi')
 
+@push('styles')
+<style>
+    /* Fix untuk mobile: pastikan content tidak overlap dengan header/footer */
+    @media (max-width: 768px) {
+        .main-content {
+            padding-bottom: 80px !important; /* Beri space untuk navbar di bawah */
+        }
+
+        .card {
+            margin-bottom: 20px !important;
+        }
+
+        /* Pastikan table responsive di mobile */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+    }
+</style>
+@endpush
+
 @section('content')
 <div class="card shadow mb-4">
     <div class="card-header py-3 d-flex justify-content-between align-items-center">
@@ -12,7 +33,40 @@
                 <i class="bi bi-arrow-left"></i> Kembali
             </a>
 
-            {{-- Ini adalah route 'nota' yang kita diskusikan tadi --}}
+            {{-- Button Bayar untuk status unpaid --}}
+            @if($transaction->status == 'unpaid')
+                <form action="{{ route('transactions.markPaid', $transaction->id) }}" method="POST" class="d-inline">
+                    @csrf
+                    @method('PUT')
+                    <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Tandai transaksi ini sebagai sudah dibayar?')">
+                        <i class="bi bi-check-circle"></i> Bayar
+                    </button>
+                </form>
+            @endif
+
+            {{-- Button Kirim untuk status paid (transaksi online) --}}
+            @if($transaction->status == 'paid' && $transaction->customer && str_contains($transaction->customer->name, '(WhatsApp)'))
+                <form action="{{ route('transactions.markSent', $transaction->id) }}" method="POST" class="d-inline">
+                    @csrf
+                    @method('PUT')
+                    <button type="submit" class="btn btn-info btn-sm" onclick="return confirm('Tandai transaksi ini sebagai sudah dikirim?')">
+                        <i class="bi bi-truck"></i> Kirim
+                    </button>
+                </form>
+            @endif
+
+            {{-- Button Selesai untuk status sent --}}
+            @if($transaction->status == 'sent')
+                <form action="{{ route('transactions.markFinished', $transaction->id) }}" method="POST" class="d-inline">
+                    @csrf
+                    @method('PUT')
+                    <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Tandai transaksi ini sebagai selesai?')">
+                        <i class="bi bi-check-all"></i> Selesai
+                    </button>
+                </form>
+            @endif
+
+            {{-- Cetak Nota tersedia untuk semua status --}}
             <a href="{{ route('transactions.receipt', $transaction->id) }}" class="btn btn-primary btn-sm" target="_blank">
                 <i class="bi bi-printer"></i> Cetak Nota
             </a>
@@ -40,7 +94,25 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Status</label>
-                    <input type="text" class="form-control" value="{{ strtoupper($transaction->status) }}" readonly>
+                    <div class="form-control" style="border: none; background: transparent; padding: 0.375rem 0;">
+                        @if($transaction->status == 'unpaid')
+                            <span class="badge bg-warning text-dark px-3 py-2">
+                                <i class="bi bi-clock"></i> BELUM BAYAR
+                            </span>
+                        @elseif($transaction->status == 'paid')
+                            <span class="badge bg-success px-3 py-2">
+                                <i class="bi bi-check-circle"></i> SUDAH BAYAR
+                            </span>
+                        @elseif($transaction->status == 'sent')
+                            <span class="badge bg-info px-3 py-2">
+                                <i class="bi bi-truck"></i> DIKIRIM
+                            </span>
+                        @elseif($transaction->status == 'finished')
+                            <span class="badge bg-primary px-3 py-2">
+                                <i class="bi bi-check-all"></i> SELESAI
+                            </span>
+                        @endif
+                    </div>
                 </div>
 
 
@@ -119,4 +191,5 @@
         </div>
     </div>
 </div>
+@endsection
 

@@ -87,9 +87,10 @@ class PurchaseController extends Controller
 
     public function store(Request $request)
     {
-        // 1. Validasi (Status DIHILANGKAN dari validasi)
+        // 1. Validasi - Accept supplier_name OR supplier_id
         $validated = $request->validate([
-            'supplier_id'   => 'required|integer|exists:suppliers,id',
+            'supplier_id'   => 'nullable|integer|exists:suppliers,id',
+            'supplier_name' => 'nullable|string|max:255',
             'phone'         => 'nullable|string|max:20',
             'products'      => 'required|array',
             'products.*'    => 'required|integer|exists:products,id',
@@ -99,15 +100,47 @@ class PurchaseController extends Controller
             'prices.*'      => 'required|numeric|min:0',
         ]);
 
+        // Ambil supplier id & nama dengan aman
+        $supplierId = $validated['supplier_id'] ?? null;
+        // Nama bisa datang dari hidden supplier_name atau input text TomSelect (supplier_name_text)
+        $supplierName = trim($validated['supplier_name'] ?? '');
+        if ($supplierName === '') {
+            $supplierName = trim($request->input('supplier_name_text', ''));
+        }
+
+        // Validasi custom: minimal salah satu (supplier_id atau supplier_name) harus diisi
+        if (empty($supplierId) && $supplierName === '') {
+            return redirect()->back()->withInput()->with('error', 'Nama supplier harus diisi!');
+        }
+
+        // Pastikan validated supplier_name terisi agar dipakai create/find
+        if ($supplierName !== '') {
+            $validated['supplier_name'] = $supplierName;
+        }
+
         DB::beginTransaction();
         try {
-            // 2. Supplier
-            $supplier = Supplier::findOrFail($validated['supplier_id']);
+            // 2. Supplier - Create or Find berdasarkan name jika supplier_id tidak ada
+            if (!empty($supplierId)) {
+                $supplier = Supplier::findOrFail($supplierId);
 
-            // Update phone jika diisi
-            if ($request->filled('phone')) {
-                $supplier->phone = $request->phone;
-                $supplier->save();
+                // Update phone jika diisi
+                if ($request->filled('phone')) {
+                    $supplier->phone = $request->phone;
+                    $supplier->save();
+                }
+            } else {
+                // Create/Find supplier berdasarkan name
+                $supplier = Supplier::firstOrCreate(
+                    ['name' => $supplierName],
+                    ['phone' => $request->phone ?? '']
+                );
+
+                // Update phone jika supplier sudah ada dan phone diisi
+                if (!$supplier->wasRecentlyCreated && $request->filled('phone')) {
+                    $supplier->phone = $request->phone;
+                    $supplier->save();
+                }
             }
 
             // 3. Buat Induk Pembelian
@@ -129,10 +162,11 @@ class PurchaseController extends Controller
                 $subtotal      = $quantity_pcs * $price_buy_pcs;
                 $totalAmount  += $subtotal;
 
-                // Update harga beli
+                // Update harga beli dan supplier
                 $product = Product::find($productId);
                 if ($product) {
                     $product->price_buy = $price_buy_pcs;
+                    $product->supplier_id = $supplier->id; // Update supplier product
                     $product->save();
                 }
 

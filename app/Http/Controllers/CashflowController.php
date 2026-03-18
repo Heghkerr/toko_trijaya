@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class CashFlowController extends Controller
 {
@@ -18,7 +19,7 @@ class CashFlowController extends Controller
             'end_date' => 'nullable|date_format:Y-m-d|after_or_equal:start_date',
             'account' => 'nullable|string|in:cash,bank',
             'flow_type' => 'nullable|string|in:masuk,keluar',
-            'source_type' => 'nullable|string|in:transaction,purchases,add_funds,refunds',
+            'source_type' => 'nullable|string|in:transaction,purchases,add_funds,refunds,transfer',
         ]);
 
 
@@ -77,5 +78,68 @@ class CashFlowController extends Controller
             'total_masuk_filtered',
             'total_keluar_filtered'
         ));
+    }
+
+    public function transfer(Request $request)
+    {
+        $validated = $request->validate([
+            'direction' => 'required|string|in:cash_to_bank,bank_to_cash',
+            'amount' => 'required|numeric|min:1',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        $amount = (float) $validated['amount'];
+        $direction = $validated['direction'];
+
+        $fromAccount = $direction === 'bank_to_cash' ? 'bank' : 'cash';
+        $toAccount = $direction === 'bank_to_cash' ? 'cash' : 'bank';
+
+        // Hitung saldo akun sumber saat ini
+        $availableSource = (float) CashFlow::where('account', $fromAccount)
+            ->sum(DB::raw("CASE WHEN flow_type = 'masuk' THEN amount ELSE -amount END"));
+
+        if ($amount > $availableSource) {
+            $sourceLabel = $fromAccount === 'cash' ? 'kas tunai' : 'kas bank';
+            return redirect()->back()->withInput()->with('error', 'Saldo ' . $sourceLabel . ' tidak mencukupi untuk transfer.');
+        }
+
+        $transferCode = 'TRF-' . now()->format('YmdHis');
+        $desc = trim($validated['description'] ?? '');
+        if ($desc === '') {
+            $desc = $direction === 'bank_to_cash'
+                ? "Transfer Kas Bank ke Tunai ({$transferCode})"
+                : "Transfer Kas Tunai ke Bank ({$transferCode})";
+        } else {
+            $desc = $desc . " ({$transferCode})";
+        }
+
+        DB::beginTransaction();
+        try {
+            // Keluar dari akun sumber
+            CashFlow::create([
+                'user_id' => Auth::id(),
+                'source_type' => 'transfer',
+                'flow_type' => 'keluar',
+                'account' => $fromAccount,
+                'amount' => $amount,
+                'description' => $desc,
+            ]);
+
+            // Masuk ke akun tujuan
+            CashFlow::create([
+                'user_id' => Auth::id(),
+                'source_type' => 'transfer',
+                'flow_type' => 'masuk',
+                'account' => $toAccount,
+                'amount' => $amount,
+                'description' => $desc,
+            ]);
+
+            DB::commit();
+            return redirect()->route('cashflow.index')->with('success', 'Transfer berhasil dicatat.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return redirect()->back()->withInput()->with('error', 'Gagal melakukan transfer: ' . $e->getMessage());
+        }
     }
 }

@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="app-base-path" content="{{ request()->getBasePath() }}">
     <title>Login - Trijaya</title>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="{{ request()->getBasePath() }}/manifest.json">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <style>
@@ -239,26 +240,13 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                var swPath = '{{ secure_asset("serviceworker.js") }}';
-                // Extract pathname if full URL
-                if (swPath.startsWith('http')) {
-                    var url = new URL(swPath);
-                    swPath = url.pathname;
-                }
+                var basePathMeta = document.querySelector('meta[name="app-base-path"]')?.content || '';
+                if (basePathMeta.endsWith('/')) basePathMeta = basePathMeta.slice(0, -1);
+                var swPath = basePathMeta + '/serviceworker.js';
+                var scope = (basePathMeta ? (basePathMeta + '/') : '/');
 
-                console.log('🔄 [Login] Registering service worker from:', swPath);
-
-                // Deteksi scope berdasarkan path aplikasi
-                var basePath = swPath.substring(0, swPath.lastIndexOf('/') + 1);
-                var scope = basePath || '/';
-
-                console.log('📍 [Login] Detected base path:', basePath);
-                console.log('📍 [Login] Using scope:', scope);
-
-                navigator.serviceWorker.register(swPath, {
-                    scope: scope
-                }).then(function(registration) {
-                    console.log('✅ [Login] Service Worker registered:', registration.scope);
+                navigator.serviceWorker.register(swPath, { scope: scope }).then(function(registration) {
+                    console.log('✅ [Login] Service Worker registered:', registration.scope, 'from', swPath);
                 }).catch(function(error) {
                     console.error('❌ [Login] Service Worker registration failed:', error);
                 });

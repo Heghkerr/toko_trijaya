@@ -39,9 +39,12 @@
         <div class="row mb-3">
             <div class="col-md-5">
                 <label for="supplier-selector" class="form-label fw-semibold">Nama Supplier</label>
-                <input type="hidden" name="supplier_id" id="supplier_id" value="{{ old('supplier_id', '') }}">
+                <input type="hidden" name="supplier_id" id="supplier_id" form="purchaseStoreForm" value="{{ old('supplier_id', '') }}">
+                <input type="hidden" name="supplier_name" id="supplier_name" form="purchaseStoreForm" value="{{ old('supplier_name', '') }}">
                 <input type="text"
+                    name="supplier_name_text"
                     id="supplier-selector"
+                    form="purchaseStoreForm"
                     class="form-control"
                     placeholder="Ketik untuk cari / tambah supplier..."
                     value="{{ optional($suppliers->firstWhere('id', old('supplier_id')))->name }}"
@@ -49,7 +52,7 @@
             </div>
             <div class="col-md-7">
                 <label for="phone" class="form-label fw-semibold">Nomor Telepon</label>
-                <input type="text" name="phone" id="select-phone" class="form-control"
+                <input type="text" name="phone" id="select-phone" form="purchaseStoreForm" class="form-control"
                     placeholder="Masukkan no. telp supplier"
                     value="{{ old('phone', optional($suppliers->firstWhere('id', old('supplier_id')))->phone) }}">
             </div>
@@ -236,7 +239,7 @@
 
             {{-- Kolom Kanan: Detail Produk Pembelian (7/12) --}}
             <div class="col-md-7">
-                <form action="{{ route('purchases.store') }}" method="POST">
+                <form id="purchaseStoreForm" action="{{ route('purchases.store') }}" method="POST">
                     @csrf
                     <div class="card border-0 shadow-sm h-100 d-flex flex-column">
                         <div class="card-header bg-white border-bottom py-2">
@@ -340,6 +343,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const addProductBtn = document.getElementById('add-product');
     const purchaseForm = document.querySelector('form[action="{{ route('purchases.store') }}"]');
     const supplierHiddenInput = document.getElementById('supplier_id');
+    const supplierNameInput = document.getElementById('supplier_name');
     const supplierSelectorInput = document.getElementById('supplier-selector');
     const phoneInput = document.getElementById('select-phone');
     const supplierStoreUrl = "{{ route('suppliers.store') }}";
@@ -368,9 +372,25 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function handleSupplierSelection(value) {
+        const isNewValue = value && value.startsWith(NEW_SUPPLIER_PREFIX);
+
+        // Set supplier_id (empty jika new supplier)
         if (supplierHiddenInput) {
-            const isNewValue = value && value.startsWith(NEW_SUPPLIER_PREFIX);
             supplierHiddenInput.value = isNewValue ? '' : (value || '');
+        }
+
+        // Set supplier_name (nama supplier, baik existing atau new)
+        if (supplierNameInput) {
+            if (isNewValue) {
+                // New supplier: ambil nama dari value (setelah prefix)
+                supplierNameInput.value = value.substring(NEW_SUPPLIER_PREFIX.length);
+            } else if (value) {
+                // Existing supplier: ambil nama dari option data
+                const optionData = getSupplierOptionData(value);
+                supplierNameInput.value = optionData ? optionData.name : '';
+            } else {
+                supplierNameInput.value = '';
+            }
         }
 
         if (!phoneInput) {
@@ -837,6 +857,40 @@ document.addEventListener('DOMContentLoaded', function() {
             if (selectedValue && selectedValue.startsWith(NEW_SUPPLIER_PREFIX)) {
                 ensureSupplierExistsBeforeSubmit(event);
                 return;
+            }
+
+            // Pastikan supplier_name selalu terisi sebelum submit
+            if (supplierNameInput) {
+                let resolvedName = '';
+                const optionData = selectedValue ? getSupplierOptionData(selectedValue) : null;
+
+                // Kasus 1: Existing Supplier (selectedValue adalah ID)
+                if (optionData && optionData.name) {
+                    resolvedName = optionData.name;
+                }
+
+                // Kasus 2: Baru selesai AJAX (optionData belum ter-update)
+                // Kasus 3: Fallback (Jika TomSelect di-disable/kosong)
+                if (!resolvedName && supplierSelectorInput) {
+                    // Ambil dari input text TomSelect (jika user ketik manual tanpa memilih opsi create)
+                    resolvedName = supplierSelectorInput.value.trim();
+                }
+
+                // PENTING: Jika supplier existing, pastikan supplier_id terisi dengan ID-nya,
+                // dan supplier_name terisi dengan namanya.
+                if (selectedValue && !selectedValue.startsWith(NEW_SUPPLIER_PREFIX)) {
+                    if (supplierHiddenInput) supplierHiddenInput.value = selectedValue; // ID
+                    if (supplierNameInput) supplierNameInput.value = resolvedName; // Nama
+                } else {
+                    // Jika supplier baru/fallback, ID kosong.
+                    if (supplierHiddenInput) supplierHiddenInput.value = ''; // ID kosong
+                    if (supplierNameInput) supplierNameInput.value = resolvedName; // Nama
+                }
+
+                // Tambahkan baris untuk memastikan supplier_name terisi
+                if (resolvedName) {
+                    supplierNameInput.value = resolvedName;
+                }
             }
 
             // Bersihkan format Rupiah sebelum submit

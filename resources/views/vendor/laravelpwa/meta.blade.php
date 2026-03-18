@@ -53,28 +53,13 @@
     // Initialize the service worker dengan error handling yang lebih baik
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
-            // Gunakan path relatif dari root domain, bukan subfolder
-            var swPath = '{{ secure_asset("serviceworker.js") }}';
-            // Jika asset() return full URL, ambil path saja
-            if (swPath.startsWith('http')) {
-                var url = new URL(swPath);
-                swPath = url.pathname;
-            }
+            // Support deployments in subfolder/base-path (ngrok -> /toko_trijaya/public, etc)
+            var basePathMeta = document.querySelector('meta[name="app-base-path"]')?.content || '';
+            if (basePathMeta.endsWith('/')) basePathMeta = basePathMeta.slice(0, -1);
+            var swPath = basePathMeta + '/serviceworker.js';
+            var scope = (basePathMeta ? (basePathMeta + '/') : '/');
 
-            console.log('🔄 Attempting to register service worker from:', swPath);
-
-            // Deteksi scope berdasarkan path aplikasi
-            // Jika service worker di /toko_trijaya/public/serviceworker.js
-            // Maka scope harus /toko_trijaya/public/ atau lebih spesifik
-            var basePath = swPath.substring(0, swPath.lastIndexOf('/') + 1);
-            var scope = basePath || '/';
-
-            console.log('📍 Detected base path:', basePath);
-            console.log('📍 Using scope:', scope);
-
-            navigator.serviceWorker.register(swPath, {
-                scope: scope
-            }).then(function (registration) {
+            navigator.serviceWorker.register(swPath, { scope: scope }).then(function (registration) {
                 // Registration was successful
                 console.log('✅ Laravel PWA: ServiceWorker registration successful');
                 console.log('Scope:', registration.scope);

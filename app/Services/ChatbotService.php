@@ -82,11 +82,9 @@ class ChatbotService
             return $this->sendMenu($phone);
         }
 
-        // Cek atau buat customer
-        $customer = Customer::firstOrCreate(
-            ['phone' => $phone],
-            ['name' => 'Customer ' . substr($phone, -4)]
-        );
+        // Customer sudah dipastikan terdaftar di database (dicek di WhatsAppController)
+        // Tidak perlu firstOrCreate lagi karena hanya customer terdaftar yang bisa sampai sini
+        $customer = Customer::where('phone', $phone)->first();
 
         // Cek apakah sudah pernah kirim menu ke nomor ini hari ini
         $menuSentKey = 'chatbot_menu_sent_' . $phone . '_' . date('Y-m-d');
@@ -112,15 +110,19 @@ class ChatbotService
                 Cache::forget('last_context_' . $phone);
                 $response = "❌ *Pesanan dibatalkan.*\n\n";
                 $response .= "━━━━━━━━━━━━━━━━\n";
-                $response .= "Ketik *3/PESAN* untuk membuat pesanan baru\n";
                 $response .= "Ketik *1/KATALOG* untuk lihat katalog\n";
                 $response .= "Ketik *2/STOK [nama produk]* untuk cek stok\n";
+                $response .= "Ketik *3/PESAN* untuk membuat pesanan baru\n";
                 $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan\n";
-                $response .= "Ketik *0/MENU* untuk kembali ke menu";
                 return $this->whatsappService->sendMessage($phone, $response);
                 }
             }
             return $this->handleOrderStep($phone, $message, $orderState);
+        }
+
+        // FAQ command (bisa dipanggil kapan saja)
+        if ($message === 'faq' || strpos($message, 'faq') === 0) {
+            return $this->handleFaq($phone);
         }
 
         // Cek apakah pesan mengandung format pesanan (NAMA: atau PESANAN:)
@@ -181,7 +183,6 @@ class ChatbotService
                 $response .= "Ketik *2/STOK [nama produk]* untuk cek stok\n";
                 $response .= "Ketik *3/PESAN* untuk buat pesanan\n";
                 $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan\n";
-                $response .= "Ketik *0/MENU* untuk kembali ke menu";
 
                 return $this->whatsappService->sendMessage($phone, $response);
             }
@@ -212,15 +213,25 @@ class ChatbotService
                     $msg .= "Ketik *1* untuk KATALOG\n";
                     $msg .= "Ketik *3* untuk PESAN\n";
                     $msg .= "Ketik *4* untuk CEK PESANAN\n";
-                    $msg .= "Ketik *0/MENU* untuk kembali ke menu";
+                    $msg .= "Ketik *5* untuk FAQ\n";
                     return $this->whatsappService->sendMessage($phone, $msg);
                 case '3': // PESAN
                     return $this->handleOrder($phone, 'pesan');
                 case '4': // CEK PESANAN
                     return $this->handleViewOrders($phone);
+                case '5': // FAQ
+                    return $this->handleFaq($phone);
                 default:
-                    // Angka lain: kirim ulang menu agar jelas
-                    return $this->sendMenu($phone);
+                    // Angka lain: tampilkan menu options tanpa reset state
+                    $response = "❌ Maaf, perintah tidak dikenali.\n\n";
+                    $response .= "━━━━━━━━━━━━━━━━\n";
+                    $response .= "💡 *Silakan pilih menu berikut:*\n\n";
+                    $response .= "Ketik *1/KATALOG* untuk lihat katalog produk\n";
+                    $response .= "Ketik *2/STOK [nama produk]* untuk cek stok\n";
+                    $response .= "Ketik *3/PESAN* untuk membuat pesanan\n";
+                    $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan\n";
+                    $response .= "Ketik *5/FAQ* untuk bantuan FAQ";
+                    return $this->whatsappService->sendMessage($phone, $response);
             }
         }
 
@@ -242,8 +253,17 @@ class ChatbotService
             }
         }
 
-        // Jika tidak sesuai command, tidak kirim balasan
-        return null;
+        // Jika tidak sesuai command, tampilkan menu options
+        $response = "❌ Maaf, perintah tidak dikenali.\n\n";
+        $response .= "━━━━━━━━━━━━━━━━\n";
+        $response .= "💡 *Silakan pilih menu berikut:*\n\n";
+        $response .= "Ketik *1/KATALOG* untuk lihat katalog produk\n";
+        $response .= "Ketik *2/STOK [nama produk]* untuk cek stok\n";
+        $response .= "Ketik *3/PESAN* untuk membuat pesanan\n";
+        $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan\n";
+        $response .= "Ketik *5/FAQ* untuk bantuan FAQ";
+
+        return $this->whatsappService->sendMessage($phone, $response);
     }
 
     /**
@@ -262,15 +282,46 @@ class ChatbotService
         $message .= "2️⃣ *STOK* - Cek stok produk\n";
         $message .= "3️⃣ *PESAN* - Buat pesanan\n";
         $message .= "4️⃣ *CEK PESANAN* - Lihat & batalkan pesanan\n\n";
+        $message .= "5️⃣ *FAQ* - Pertanyaan yang sering ditanyakan\n\n";
         $message .= "━━━━━━━━━━━━━━━━\n";
         $message .= "💡 *Cara menggunakan:*\n\n";
         $message .= "Ketik *1* atau *KATALOG* untuk lihat katalog\n";
         $message .= "Ketik *2* atau *STOK [nama produk]* untuk cek stok\n";
         $message .= "Ketik *3* atau *PESAN* untuk membuat pesanan\n";
-        $message .= "Ketik *4* atau *CEK PESANAN* untuk lihat pesanan\n\n";
+        $message .= "Ketik *4* atau *CEK PESANAN* untuk lihat pesanan\n";
+        $message .= "Ketik *5* atau *FAQ* untuk bantuan FAQ\n\n";
         $message .= "📝 *Tips:* Angka 1/2/3/4 bisa digunakan kapan saja untuk navigasi cepat!";
 
         return $this->whatsappService->sendMessage($phone, $message);
+    }
+
+    /**
+     * Handle FAQ chatbot
+     */
+    protected function handleFaq($phone)
+    {
+        $response = "❓ *FAQ Toko Trijaya (Aksesoris Tas)*\n\n";
+
+        $response .= "1) *Informasi Produk & Stok*\n";
+        $response .= "• Cek stok real-time: ketik *STOK [nama produk]*\n";
+        $response .= "  Contoh: *STOK KELING 10*, *STOK K10*, *STOK KANCING 8*\n";
+        $response .= "• Lihat katalog: ketik *KATALOG* atau *1*\n";
+        $response .= "• Jenis produk (contoh): keling, mata ayam, gesper, kaitan, kancing AK, kancing karat, magnet tanam, rante, ring kunci\n\n";
+
+        $response .= "2) *Pemesanan & Pembelian*\n";
+        $response .= "• Pre-order: ketik *PESAN* atau *3*, lalu isi format yang diberikan bot.\n";
+        $response .= "• Nota digital: setelah transaksi selesai & dibayar, sistem bisa mengirim nota ke WhatsApp (jika nomor customer terisi).\n";
+        $response .= "• Lokasi: Jl. Imam Bonjol no.336, Denpasar, Bali\n\n";
+
+        $response .= "3) *Lain-lain*\n";
+        $response .= "• Salah ketik perintah: ketik *MENU* atau *0* untuk kembali ke menu.\n";
+        $response .= "• Metode pembayaran: Cash (Tunai), Card (Kartu), QRIS.\n\n";
+
+        $response .= "━━━━━━━━━━━━━━━━\n";
+        $response .= "Ketik *MENU/0* untuk kembali ke menu\n";
+        $response .= "Ketik *1* untuk KATALOG | *2* untuk STOK | *3* untuk PESAN | *4* untuk CEK PESANAN";
+
+        return $this->whatsappService->sendMessage($phone, $response);
     }
 
     /**
@@ -307,7 +358,6 @@ class ChatbotService
             $message .= "Ketik *1/KATALOG* untuk lihat katalog\n";
             $message .= "Ketik *3/PESAN* untuk membuat pesanan\n";
             $message .= "Ketik *4/CEK PESANAN* untuk lihat pesanan\n";
-            $message .= "Ketik *0/MENU* untuk kembali ke menu";
             return $this->whatsappService->sendMessage($phone, $message);
         }
 
@@ -345,55 +395,42 @@ class ChatbotService
         $response .= "Ketik *1/KATALOG* untuk lihat katalog\n";
         $response .= "Ketik *3/PESAN* untuk membuat pesanan\n";
         $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan\n";
-        $response .= "Ketik *0/MENU* untuk kembali ke menu";
 
         return $this->whatsappService->sendMessage($phone, $response);
     }
 
     /**
-     * Normalisasi nama produk - convert "keling 10" atau "k10" menjadi "K10"
+     * Normalisasi nama produk untuk pencarian.
      *
-     * @param string $input
-     * @return string
+     * Catatan: dibuat konservatif supaya tidak salah mapping nama produk di database.
+     * - "keling 10" / "k 10" / "k10" / "k-10" -> "K10"
+     * - selain itu: uppercase + rapikan spasi
      */
-    protected function normalizeProductName($input)
+    protected function normalizeProductName(string $input): string
     {
-        $input = trim(strtolower($input));
-
-        // Pattern 1: "keling 10", "kancing 8" → "K10", "K8"
-        if (preg_match('/^(keling|kancing|k)\s+(\d+)$/i', $input, $matches)) {
-            $prefix = strtolower($matches[1]);
-            $number = $matches[2];
-
-            // Mapping prefix ke format database
-            $prefixMap = [
-                'keling' => 'K',
-                'kancing' => 'KC',
-                'k' => 'K'
-            ];
-
-            $prefix = $prefixMap[$prefix] ?? strtoupper($prefix);
-            return $prefix . $number;
+        $input = trim($input);
+        if ($input === '') {
+            return '';
         }
 
-        // Pattern 2: "k10", "k-10", "k_10" → "K10"
-        if (preg_match('/^([a-z]+)[\s\-_]?(\d+)$/i', $input, $matches)) {
-            $prefix = strtolower($matches[1]);
-            $number = $matches[2];
+        // Rapikan whitespace + buang karakter aneh (tetap simpan spasi, dash, underscore)
+        $normalized = preg_replace('/\s+/', ' ', $input);
+        $normalized = preg_replace('/[^\p{L}\p{N}\s\-_]/u', '', $normalized);
+        $normalized = trim($normalized);
 
-            // Mapping singkatan
-            $shortcuts = [
-                'k' => 'K',
-                'kc' => 'K',
-                'kac' => 'K'
-            ];
+        $lower = strtolower($normalized);
 
-            $prefix = $shortcuts[$prefix] ?? strtoupper($prefix);
-            return $prefix . $number;
+        // Pattern 1: "keling 10" / "k 10" -> "K10"
+        if (preg_match('/^(keling|k)\s+(\d+)$/i', $lower, $matches)) {
+            return 'K' . $matches[2];
         }
 
-        // Jika tidak match pattern, return uppercase
-        return strtoupper($input);
+        // Pattern 2: "k10" / "k-10" / "k_10" -> "K10"
+        if (preg_match('/^k[\s\-_]?(\d+)$/i', $lower, $matches)) {
+            return 'K' . $matches[1];
+        }
+
+        return strtoupper($normalized);
     }
 
     /**
@@ -409,16 +446,15 @@ class ChatbotService
 
         $response = "📝 *PEMESANAN PRODUK*\n\n";
         $response .= "Silakan kirim pesanan Anda dengan format:\n\n";
-        $response .= "*NAMA: [Nama Lengkap]*\n";
-        $response .= "*PESANAN: [JUMLAH] [SATUAN] [PRODUK] warna [WARNA], ...*\n\n";
-        $response .= "📦 *Contoh format pesanan:*\n";
-        $response .= "NAMA: DARREN\n";
-        $response .= "PESANAN: 2 LUSIN KELING 10 warna NKL, 1 GROSAN KANCING 8 warna MERAH\n\n";
-        $response .= "📌 *PENTING:*\n";
-        $response .= "• Jumlah & satuan harus disebutkan (contoh: 2 LUSIN)\n";
-        $response .= "• Warna harus disebutkan (contoh: warna NKL)\n";
-        $response .= "• Gunakan koma (,) untuk pisahkan multiple item\n\n";
-        $response .= "💡 *Satuan umum:* LUSIN, GROSAN, PAK, PCS, KODI\n\n";
+        $response .= "*Nama:* [Nama]\n\n";
+        $response .= "*Nama Produk:* [Nama Produk], ... , ...\n";
+        $response .= "*Warna Produk:* [Warna], ... , ...\n";
+        $response .= "*Jumlah Produk:* [Jumlah] [Satuan], ... , ...\n\n";
+        $response .= "━━━━━━━━━━━━━━━━\n\n";
+        $response .= "💡 *Satuan yang tersedia:*\n";
+        $response .= "LUSIN, GROSSAN, RATUSAN, RIBUAN, PAK, SATUAN\n\n";
+        $response .= "🎨 *Contoh warna:*\n";
+        $response .= "NKL, BN, LG, dll\n\n";
         $response .= "Ketik *BATAL* atau *0* jika tidak jadi pesan.";
 
         return $this->whatsappService->sendMessage($phone, $response);
@@ -446,10 +482,10 @@ class ChatbotService
                     Cache::forget('last_context_' . $phone);
                     $response = "❌ *Pesanan dibatalkan.*\n\n";
                     $response .= "━━━━━━━━━━━━━━━━\n";
-                    $response .= "Ketik *3/PESAN* untuk membuat pesanan baru\n";
                     $response .= "Ketik *1/KATALOG* untuk lihat katalog\n";
+                    $response .= "Ketik *2/STOK [nama produk]* untuk cek stok\n";
+                    $response .= "Ketik *3/PESAN* untuk membuat pesanan baru\n";
                     $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan\n";
-                    $response .= "Ketik *0/MENU* untuk kembali ke menu";
                     return $this->whatsappService->sendMessage($phone, $response);
                 }
             }
@@ -459,17 +495,19 @@ class ChatbotService
 
             if (!$parsed || empty($parsed['name']) || empty($parsed['order'])) {
                 $response = "❌ *Format pesanan tidak sesuai!*\n\n";
-                $response .= "Silakan gunakan format:\n";
-                $response .= "*NAMA: [Nama Lengkap]*\n";
-                $response .= "*PESANAN: [JUMLAH] [SATUAN] [PRODUK] warna [WARNA], ...*\n\n";
-                $response .= "📦 *Contoh:*\n";
-                $response .= "NAMA: DARREN\n";
-                $response .= "PESANAN: 2 LUSIN KELING 10 warna NKL, 1 GROSAN KANCING 8 warna MERAH\n\n";
-                $response .= "📌 *PENTING:*\n";
-                $response .= "• Jumlah & satuan harus disebutkan\n";
-                $response .= "• Warna harus disebutkan\n";
-                $response .= "• Pisahkan dengan koma (,) untuk multiple item\n\n";
-                $response .= "💡 *Satuan umum:* LUSIN, GROSAN, PAK, PCS, KODI\n\n";
+                $response .= "━━━━━━━━━━━━━━━━\n\n";
+                $response .= "📦 *Contoh untuk 1 produk:*\n\n";
+                $response .= "Nama: DARREN\n\n";
+                $response .= "Nama Produk: KELING 10\n";
+                $response .= "Warna Produk: NKL\n";
+                $response .= "Jumlah Produk: 2 LUSIN\n\n";
+                $response .= "━━━━━━━━━━━━━━━━\n\n";
+                $response .= "📦 *Contoh untuk multiple produk:*\n\n";
+                $response .= "Nama: DARREN\n\n";
+                $response .= "Nama Produk: K10x7, KC206\n";
+                $response .= "Warna Produk: BN, ATG\n";
+                $response .= "Jumlah Produk: 2 LUSIN, 1 GROSS\n\n";
+                $response .= "💡 *Satuan:* LUSIN, GROSS, RATUSAN, RIBUAN, PAK, SATUAN\n\n";
                 $response .= "━━━━━━━━━━━━━━━━\n";
                 $response .= "Ketik *BATAL* atau *0* untuk membatalkan";
 
@@ -567,7 +605,6 @@ class ChatbotService
                         $response .= "📦 Status: *PENDING* 🟡\n\n";
                         $response .= "Terima kasih atas pesanan Anda.\n";
                         $response .= "Kami akan segera memprosesnya. 😊\n\n";
-                        $response .= "Ketik *0/MENU* untuk kembali ke menu utama";
 
                         return $this->whatsappService->sendMessage($phone, $response);
                     }
@@ -617,7 +654,6 @@ class ChatbotService
                         $response .= "Pesanan Anda sedang dalam proses.\n";
                         $response .= "Tidak perlu kirim pesanan lagi. 😊\n\n";
                         $response .= "Ketik *4/CEK PESANAN* untuk cek status\n";
-                        $response .= "Ketik *0/MENU* untuk kembali ke menu utama";
 
                         return $this->whatsappService->sendMessage($phone, $response);
                     }
@@ -632,10 +668,28 @@ class ChatbotService
                     ]);
 
                     $ownerMessage = "📦 *PESANAN BARU*\n\n";
-                    $ownerMessage .= "NAMA: *{$data['name']}*\n";
-                    $ownerMessage .= "PESANAN: *{$data['order']}*\n";
-                    $ownerMessage .= "Nomor: *{$data['phone']}*\n\n";
-                    $ownerMessage .= "Waktu: " . now()->format('d/m/Y H:i');
+                    $ownerMessage .= "👤 Nama: *" . strtoupper($data['name']) . "*\n";
+                    $ownerMessage .= "📱 Nomor: *{$data['phone']}*\n";
+                    $ownerMessage .= "🕒 Waktu: " . now()->format('d/m/Y H:i') . "\n\n";
+                    $ownerMessage .= "━━━━━━━━━━━━━━━━\n";
+                    $ownerMessage .= "📦 *DETAIL PESANAN:*\n\n";
+
+                    // Tampilkan detail item (ambil dari $data['items'] yang sudah disimpan di cache)
+                    if (!empty($data['items'])) {
+                        foreach ($data['items'] as $item) {
+                            if (isset($item['unit_name'])) {
+                                $ownerMessage .= "• *{$item['product_name']}* ({$item['color_name']})\n";
+                                $ownerMessage .= "  Jumlah: {$item['quantity']} {$item['unit_name']}\n\n";
+                            } else {
+                                $ownerMessage .= "• *{$item['product_name']}* ({$item['color_name']})\n";
+                                $ownerMessage .= "  Stock: {$item['stock_pcs']} pcs\n\n";
+                            }
+                        }
+                    } else {
+                        // Fallback: tampilkan order_text jika items tidak ada
+                        $ownerMessage .= "📝 Pesanan: {$data['order']}\n\n";
+                    }
+                    $ownerMessage .= "━━━━━━━━━━━━━━━━";
 
                     $ownerResult = $this->whatsappService->sendMessage($ownerPhone, $ownerMessage);
 
@@ -692,10 +746,9 @@ class ChatbotService
                 $response .= "📍 *Alamat Toko:*\n";
                 $response .= "Jl. Imam Bonjol no.336, Denpasar, Bali\n\n";
                 $response .= "━━━━━━━━━━━━━━━━\n";
-                $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan\n";
-                $response .= "Ketik *3/PESAN* untuk pesan lagi\n";
                 $response .= "Ketik *1/KATALOG* untuk lihat katalog\n";
-                $response .= "Ketik *0/MENU* untuk kembali ke menu";
+                $response .= "Ketik *3/PESAN* untuk pesan lagi\n";
+                $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan\n";
 
                 Log::info('Sending success message to customer', [
                     'order_id' => $whatsappOrder->id,
@@ -745,10 +798,9 @@ class ChatbotService
                     Cache::forget('last_context_' . $phone);
                     $response = "❌ *Pesanan dibatalkan.*\n\n";
                     $response .= "━━━━━━━━━━━━━━━━\n";
-                    $response .= "Ketik *3/PESAN* untuk membuat pesanan baru\n";
                     $response .= "Ketik *1/KATALOG* untuk lihat katalog\n";
+                    $response .= "Ketik *3/PESAN* untuk membuat pesanan baru\n";
                     $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan\n";
-                    $response .= "Ketik *0/MENU* untuk kembali ke menu";
                     return $this->whatsappService->sendMessage($phone, $response);
                 } else {
                     // Format tidak jelas, minta konfirmasi ulang
@@ -778,26 +830,68 @@ class ChatbotService
             'order' => ''
         ];
 
-        // Cari NAMA: (case insensitive)
-        if (preg_match('/nama\s*:\s*(.+?)(?:\n|pesanan|$)/i', $message, $matches)) {
-            $result['name'] = trim($matches[1]);
+        // Parse format baru:
+        // Nama: ...
+        // Nama Produk: ... (bisa multiple, dipisah koma)
+        // Warna Produk: ... (bisa multiple, dipisah koma)
+        // Jumlah Produk: ... (bisa multiple, dipisah koma)
+
+        $namaPelanggan = '';
+        $namaProduk = [];
+        $warnaProduk = [];
+        $jumlahProduk = [];
+
+        // Cari Nama
+        if (preg_match('/nama\s*:\s*(.+?)(?=\n|$)/i', $message, $matches)) {
+            $namaPelanggan = trim($matches[1]);
         }
 
-        // Cari PESANAN: (case insensitive)
-        if (preg_match('/pesanan\s*:\s*(.+?)$/i', $message, $matches)) {
-            $result['order'] = trim($matches[1]);
+        // Cari Nama Produk
+        if (preg_match('/nama\s+produk\s*:\s*(.+?)(?=\n|$)/i', $message, $matches)) {
+            $produkStr = trim($matches[1]);
+            $namaProduk = array_map('trim', explode(',', $produkStr));
         }
 
-        // Jika tidak ditemukan dengan regex, coba split manual
-        if (empty($result['name']) || empty($result['order'])) {
-            $lines = explode("\n", $message);
-            foreach ($lines as $line) {
-                $line = trim($line);
-                if (stripos($line, 'nama:') === 0) {
-                    $result['name'] = trim(substr($line, 5));
-                } elseif (stripos($line, 'pesanan:') === 0) {
-                    $result['order'] = trim(substr($line, 8));
-                }
+        // Cari Warna Produk
+        if (preg_match('/warna\s+produk\s*:\s*(.+?)(?=\n|$)/i', $message, $matches)) {
+            $warnaStr = trim($matches[1]);
+            $warnaProduk = array_map('trim', explode(',', $warnaStr));
+        }
+
+        // Cari Jumlah Produk
+        if (preg_match('/jumlah\s+produk\s*:\s*(.+?)(?=\n|$)/i', $message, $matches)) {
+            $jumlahStr = trim($matches[1]);
+            $jumlahProduk = array_map('trim', explode(',', $jumlahStr));
+        }
+
+        // Kombinasikan menjadi format order string
+        // Format: "[JUMLAH] [SATUAN] [NAMA PRODUK] warna [WARNA]"
+        $orderItems = [];
+        $count = max(count($namaProduk), count($warnaProduk), count($jumlahProduk));
+
+        for ($i = 0; $i < $count; $i++) {
+            $jumlah = isset($jumlahProduk[$i]) ? $jumlahProduk[$i] : '';
+            $nama = isset($namaProduk[$i]) ? $namaProduk[$i] : '';
+            $warna = isset($warnaProduk[$i]) ? $warnaProduk[$i] : '';
+
+            if (!empty($jumlah) && !empty($nama) && !empty($warna)) {
+                $orderItems[] = "$jumlah $nama warna $warna";
+            }
+        }
+
+        $result['name'] = $namaPelanggan;
+        $result['order'] = implode(', ', $orderItems);
+
+        // Fallback: coba format lama jika format baru tidak terdeteksi
+        if (empty($result['order'])) {
+            // Cari NAMA: (case insensitive)
+            if (preg_match('/nama\s*:\s*(.+?)(?:\n|pesanan|$)/i', $message, $matches)) {
+                $result['name'] = trim($matches[1]);
+            }
+
+            // Cari PESANAN: (case insensitive)
+            if (preg_match('/pesanan\s*:\s*(.+?)$/is', $message, $matches)) {
+                $result['order'] = trim($matches[1]);
             }
         }
 
@@ -1000,7 +1094,7 @@ class ChatbotService
     {
         $text = trim($text);
 
-        // Pola 1: "2 LUSIN K10 warna NKL" atau "1 GROSAN KANCING 8 warna MERAH"
+        // Pola 1: "2 LUSIN K10 warna NKL" atau "1 GROSSAN KANCING 8 warna MERAH"
         // Format: [angka] [unit] [produk] warna [warna]
         if (preg_match('/^(\d+)\s+([a-z]+)\s+(.*?)\s+warna\s+(.+)$/i', $text, $matches)) {
             return [
@@ -1235,11 +1329,6 @@ class ChatbotService
         $response .= "Ketik *nomor* (contoh: *1*) atau *KATALOG [nama jenis]*\n";
         $response .= "Contoh: *1* atau *KATALOG KAITAN*\n\n";
 
-        $response .= "━━━━━━━━━━━━━━━━\n";
-        $response .= "Ketik *2/STOK [nama produk]* untuk cek stok\n";
-        $response .= "Ketik *3/PESAN* untuk membuat pesanan\n";
-        $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan\n";
-        $response .= "Ketik *0/MENU* untuk kembali ke menu";
 
         return $this->whatsappService->sendMessage($phone, $response);
     }
@@ -1291,7 +1380,6 @@ class ChatbotService
             $message .= "━━━━━━━━━━━━━━━━\n";
             $message .= "Ketik *1/KATALOG* untuk melihat daftar jenis produk\n";
             $message .= "Ketik *3/PESAN* untuk membuat pesanan\n";
-            $message .= "Ketik *0/MENU* untuk kembali ke menu";
             return $this->whatsappService->sendMessage($phone, $message);
         }
 
@@ -1316,8 +1404,8 @@ class ChatbotService
             $message = "❌ Belum ada produk untuk jenis *{$productType->name}*.\n\n";
             $message .= "━━━━━━━━━━━━━━━━\n";
             $message .= "Ketik *1/KATALOG* untuk kembali ke katalog\n";
+            $message .= "Ketik *2/STOK [nama produk]* untuk cek stok\n";
             $message .= "Ketik *3/PESAN* untuk membuat pesanan\n";
-            $message .= "Ketik *0/MENU* untuk kembali ke menu";
             return $this->whatsappService->sendMessage($phone, $message);
         }
 
@@ -1345,7 +1433,6 @@ class ChatbotService
         $response .= "Ketik *1/KATALOG* untuk kembali ke katalog\n";
         $response .= "Ketik *3/PESAN* untuk membuat pesanan\n";
         $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan\n";
-        $response .= "Ketik *0/MENU* untuk kembali ke menu";
 
         return $this->whatsappService->sendMessage($phone, $response);
     }
@@ -1366,9 +1453,8 @@ class ChatbotService
             $response = "📝 *PESANAN ANDA*\n\n";
             $response .= "Anda belum memiliki pesanan.\n\n";
             $response .= "━━━━━━━━━━━━━━━━\n";
-            $response .= "Ketik *3/PESAN* untuk membuat pesanan baru\n";
             $response .= "Ketik *1/KATALOG* untuk lihat katalog\n";
-            $response .= "Ketik *0/MENU* untuk kembali ke menu";
+            $response .= "Ketik *3/PESAN* untuk membuat pesanan baru\n";
             return $this->whatsappService->sendMessage($phone, $response);
         }
 
@@ -1407,9 +1493,8 @@ class ChatbotService
         }
 
         $response .= "━━━━━━━━━━━━━━━━\n";
-        $response .= "Ketik *3/PESAN* untuk pesan lagi\n";
         $response .= "Ketik *1/KATALOG* untuk lihat katalog\n";
-        $response .= "Ketik *0/MENU* untuk kembali ke menu";
+        $response .= "Ketik *3/PESAN* untuk pesan lagi\n";
 
         return $this->whatsappService->sendMessage($phone, $response);
     }
@@ -1426,7 +1511,6 @@ class ChatbotService
             $response .= "Contoh: *BATAL PESANAN 123*\n\n";
             $response .= "━━━━━━━━━━━━━━━━\n";
             $response .= "Ketik *4/CEK PESANAN* untuk lihat nomor pesanan\n";
-            $response .= "Ketik *0/MENU* untuk kembali ke menu";
             return $this->whatsappService->sendMessage($phone, $response);
         }
 
@@ -1440,7 +1524,6 @@ class ChatbotService
             $response .= "Pesanan #{$orderId} tidak ditemukan atau bukan milik Anda.\n\n";
             $response .= "━━━━━━━━━━━━━━━━\n";
             $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan Anda\n";
-            $response .= "Ketik *0/MENU* untuk kembali ke menu";
             return $this->whatsappService->sendMessage($phone, $response);
         }
 
@@ -1449,9 +1532,9 @@ class ChatbotService
             $response = "ℹ️ *Pesanan sudah dibatalkan sebelumnya.*\n\n";
             $response .= "Pesanan #{$orderId} sudah dibatalkan pada " . $order->updated_at->format('d/m/Y H:i') . "\n\n";
             $response .= "━━━━━━━━━━━━━━━━\n";
-            $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan lain\n";
             $response .= "Ketik *3/PESAN* untuk pesan lagi\n";
-            $response .= "Ketik *0/MENU* untuk kembali ke menu";
+            $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan lain\n";
+
             return $this->whatsappService->sendMessage($phone, $response);
         }
 
@@ -1473,10 +1556,10 @@ class ChatbotService
         $response = "✅ *Pesanan berhasil dibatalkan!*\n\n";
         $response .= "Pesanan #{$orderId} telah dibatalkan.\n\n";
         $response .= "━━━━━━━━━━━━━━━━\n";
+        $response .= "Ketik *1/KATALOG* untuk lihat katalog\n";
+        $response .= "Ketik *2/STOK [nama produk]* untuk cek stok\n";
         $response .= "Ketik *3/PESAN* untuk pesan lagi\n";
         $response .= "Ketik *4/CEK PESANAN* untuk lihat pesanan lain\n";
-        $response .= "Ketik *1/KATALOG* untuk lihat katalog\n";
-        $response .= "Ketik *0/MENU* untuk kembali ke menu";
 
         return $this->whatsappService->sendMessage($phone, $response);
     }

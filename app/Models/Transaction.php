@@ -19,6 +19,7 @@ class Transaction extends Model
         'status',
         'user_id',
         'customer_id',
+        'whatsapp_order_id',
     ];
 
     public function details()
@@ -44,5 +45,10 @@ class Transaction extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function whatsappOrder()
+    {
+        return $this->belongsTo(WhatsappOrder::class);
     }
 }

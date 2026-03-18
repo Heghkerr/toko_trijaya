@@ -58,7 +58,7 @@
         </p>
 
         {{-- INI BARIS YANG DITAMBAHKAN --}}
-        @if($transaction->status == 'paid')
+        @if(in_array($transaction->status, ['paid', 'finished']))
             <strong>Status: LUNAS</strong>
         @else
             <strong style="font-weight: bold; color: black;">Status: BELUM LUNAS</strong>

@@ -23,11 +23,14 @@
     <title>Toko Trijaya - @yield('title')</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="user-id" content="{{ auth()->id() }}">
+    <meta name="vapid-public-key" content="{{ config('services.webpush.vapid_public_key') }}">
+    <meta name="app-base-path" content="{{ request()->getBasePath() }}">
     <script src="{{ secure_asset('js/idb-keyval.min.js') }}"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
     @stack('styles')
     <style>
         :root {
@@ -50,7 +53,7 @@
             height: 100vh;
             transition: all var(--transition-speed) ease;
             position: fixed;
-            z-index: 1000;
+            z-index: 1040;
             background: var(--sidebar-bg);
             box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
             display: flex;
@@ -95,6 +98,7 @@
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(calc(var(--sidebar-width) * -1));
+                z-index: 1040 !important;
             }
 
             .sidebar-collapsed {
@@ -104,22 +108,127 @@
             .main-content {
                 margin-left: 0;
                 width: 100%;
+                position: relative;
+                z-index: 1;
             }
 
             .sidebar-show {
                 transform: translateX(0);
                 box-shadow: 5px 0 15px rgba(0, 0, 0, 0.2);
+                z-index: 1040 !important;
             }
 
             .navbar {
                 position: sticky !important;
                 top: 0 !important;
-                z-index: 999 !important;
+                z-index: 1030 !important;
                 background: white !important;
             }
 
             .navbar-brand {
-                font-size: 1.1rem !important;
+                font-size: 1rem !important;
+            }
+
+            .content-container {
+                padding: 15px 10px !important;
+            }
+
+            /* Card Improvements */
+            .card {
+                margin-bottom: 1rem;
+            }
+
+            .card-body {
+                padding: 1rem;
+            }
+
+            .card-header {
+                padding: 0.75rem 1rem;
+            }
+
+            /* Table Responsive */
+            .table-responsive {
+                margin: 0 -1rem;
+                padding: 0 1rem;
+            }
+
+            .table {
+                font-size: 0.85rem;
+            }
+
+            .table th,
+            .table td {
+                padding: 0.5rem 0.3rem;
+                white-space: nowrap;
+            }
+
+            /* Button Improvements */
+            .btn-sm {
+                padding: 0.4rem 0.75rem;
+                font-size: 0.8rem;
+            }
+
+            .btn-group {
+                flex-wrap: wrap;
+                gap: 0.25rem;
+            }
+
+            /* Badge & User Badge */
+            .user-badge {
+                padding: 6px 10px !important;
+                font-size: 0.8rem;
+            }
+
+            /* Form Controls */
+            .form-control,
+            .form-select {
+                font-size: 0.9rem;
+            }
+
+            /* Alert */
+            .alert {
+                font-size: 0.9rem;
+                padding: 0.75rem;
+            }
+
+            /* Stat Cards on Dashboard */
+            .h5 {
+                font-size: 1rem;
+            }
+
+            .text-xs {
+                font-size: 0.65rem;
+            }
+
+            /* Row Spacing */
+            .row {
+                margin-left: -0.5rem;
+                margin-right: -0.5rem;
+            }
+
+            .row > * {
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
+            }
+
+            /* Dropdown Menu */
+            .dropdown-menu {
+                font-size: 0.9rem;
+            }
+
+            /* Back to Top Button */
+            .back-to-top {
+                width: 45px;
+                height: 45px;
+                line-height: 45px;
+                font-size: 18px;
+                bottom: 15px;
+                right: 15px;
+            }
+
+            /* Chart Container */
+            canvas {
+                max-height: 200px !important;
             }
         }
 
@@ -201,6 +310,25 @@
         /* Smooth scroll behavior */
         html {
             scroll-behavior: smooth;
+        }
+
+        /* Sidebar backdrop for mobile */
+        .sidebar-backdrop {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1035;
+            transition: opacity 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar-backdrop.show {
+                display: block;
+            }
         }
 
         /* Back to top button */
@@ -355,16 +483,63 @@
                 width: calc(100% - 40px);
                 max-width: none;
                 bottom: 10px;
+                padding: 12px 15px;
             }
 
             .pwa-banner-content {
                 flex-direction: column;
                 text-align: center;
+                gap: 10px;
             }
 
             .pwa-banner-actions {
                 width: 100%;
                 justify-content: center;
+            }
+
+            .pwa-banner-text strong {
+                font-size: 14px;
+            }
+
+            .pwa-banner-text small {
+                font-size: 11px;
+            }
+        }
+
+        /* Small Mobile Devices */
+        @media (max-width: 480px) {
+            .navbar-brand {
+                font-size: 0.9rem !important;
+            }
+
+            .content-container {
+                padding: 10px 8px !important;
+            }
+
+            .card-body {
+                padding: 0.75rem;
+            }
+
+            .table {
+                font-size: 0.75rem;
+            }
+
+            .btn {
+                font-size: 0.8rem;
+                padding: 0.375rem 0.65rem;
+            }
+
+            .btn-sm {
+                padding: 0.3rem 0.6rem;
+                font-size: 0.75rem;
+            }
+
+            h5, .h5 {
+                font-size: 0.95rem;
+            }
+
+            h6, .h6 {
+                font-size: 0.85rem;
             }
         }
 
@@ -413,6 +588,9 @@
 </head>
 <body>
     <div class="d-flex">
+        <!-- Sidebar Backdrop (Mobile Only) -->
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
         <!-- Sidebar -->
         <div class="sidebar text-white" id="sidebar">
             <div class="sidebar-header">
@@ -455,6 +633,12 @@
                                 @endif
                             </a>
                         </li>
+                        <li class="nav-item animate__animated animate__fadeInLeft" style="animation-delay: 0.55s;">
+                            <a class="nav-link {{ request()->is('whatsapp/orders*') ? 'active' : '' }}" href="{{ route('whatsapp.orders.index') }}">
+                                <i class="bi bi-whatsapp me-2"></i> Whatsapp
+                            </a>
+                        </li>
+
                     @else
 
                         <li class="nav-item animate__animated animate__fadeInLeft" style="animation-delay: 0.2s;">
@@ -512,6 +696,11 @@
                                 <i class="bi bi-wallet2 me-2"></i> Buku Kas (Cash Flow)
                             </a>
                         </li>
+                        <li class="nav-item animate__animated animate__fadeInLeft" style="animation-delay: 0.55s;">
+                            <a class="nav-link {{ request()->is('whatsapp/orders*') ? 'active' : '' }}" href="{{ route('whatsapp.orders.index') }}">
+                                <i class="bi bi-whatsapp me-2"></i> Whatsapp
+                            </a>
+                        </li>
                         <li class="nav-item animate__animated animate__fadeInLeft" style="animation-delay: 0.8s;">
                             <a class="nav-link {{ request()->is('reports/download') ? 'active' : '' }}" href="{{ route('reports.download') }}">
                                 <i class="bi bi-download me-2"></i> Unduh Laporan
@@ -535,22 +724,23 @@
         <div class="main-content" id="mainContent">
             <nav class="navbar navbar-expand-md navbar-light shadow-sm" style="position: sticky; top: 0; z-index: 999; background: white !important;">
                 <div class="container-fluid">
-                    <div class="d-flex align-items-center">
+                    <div class="d-flex align-items-center flex-grow-1">
                         <div class="toggle-btn me-3 d-none d-md-block animate__animated animate__fadeIn" id="sidebarCollapse">
                             <i class="bi bi-list"></i>
                         </div>
-                        <div class="toggle-btn me-3 d-md-none animate__animated animate__fadeIn" id="sidebarCollapseMobileNav" style="color: #333;">
+                        <div class="toggle-btn me-2 d-md-none animate__animated animate__fadeIn" id="sidebarCollapseMobileNav" style="color: #333;">
                             <i class="bi bi-list"></i>
                         </div>
-                        <span class="navbar-brand mb-0 h1 animate__animated animate__fadeIn">@yield('title')</span>
+                        <span class="navbar-brand mb-0 h1 animate__animated animate__fadeIn text-truncate">@yield('title')</span>
                     </div>
                     @auth
-                    <div class="text-end">
-                        <a href="{{ route('profile.edit') }}" class="user-badge bg-primary text-white text-decoration-none animate__animated animate__fadeIn">
+                    <div class="text-end flex-shrink-0">
+                        <a href="{{ route('profile.edit') }}" class="user-badge bg-primary text-white text-decoration-none animate__animated animate__fadeIn d-flex align-items-center">
                             <i class="bi bi-person-circle me-1"></i>
-                            {{ auth()->user()->name }} ({{ ucfirst(auth()->user()->role) }})
+                            <span class="d-none d-sm-inline">{{ auth()->user()->name }}</span>
+                            <span class="d-inline d-sm-none">{{ substr(auth()->user()->name, 0, 10) }}...</span>
+                            <span class="d-none d-md-inline ms-1">({{ ucfirst(auth()->user()->role) }})</span>
                         </a>
-
                     </div>
                     @endauth
                 </div>
@@ -658,6 +848,7 @@
             const mainContent = document.getElementById('mainContent');
             const sidebarCollapse = document.getElementById('sidebarCollapse');
             const sidebarCollapseMobile = document.getElementById('sidebarCollapseMobile');
+            const sidebarBackdrop = document.getElementById('sidebarBackdrop');
             const backToTop = document.getElementById('backToTop');
             let isCollapsed = false;
 
@@ -670,6 +861,9 @@
             if (sidebarCollapseMobile) {
                 sidebarCollapseMobile.addEventListener('click', function() {
                     sidebar.classList.remove('sidebar-show');
+                    if (sidebarBackdrop) {
+                        sidebarBackdrop.classList.remove('show');
+                    }
                 });
             }
 
@@ -678,6 +872,17 @@
             if (sidebarCollapseMobileNav) {
                 sidebarCollapseMobileNav.addEventListener('click', function() {
                     sidebar.classList.toggle('sidebar-show');
+                    if (sidebarBackdrop) {
+                        sidebarBackdrop.classList.toggle('show');
+                    }
+                });
+            }
+
+            // Close sidebar when clicking backdrop
+            if (sidebarBackdrop) {
+                sidebarBackdrop.addEventListener('click', function() {
+                    sidebar.classList.remove('sidebar-show');
+                    sidebarBackdrop.classList.remove('show');
                 });
             }
 
@@ -768,28 +973,18 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                var swPath = '{{ secure_asset("serviceworker.js") }}';
-                // Extract pathname if full URL
-                if (swPath.startsWith('http')) {
-                    var url = new URL(swPath);
-                    swPath = url.pathname;
-                }
+                // IMPORTANT: support subfolder/base-path deployments (ngrok -> /toko_trijaya, etc)
+                var basePathMeta = document.querySelector('meta[name="app-base-path"]')?.content || '';
+                if (basePathMeta.endsWith('/')) basePathMeta = basePathMeta.slice(0, -1);
+                var swPath = basePathMeta + '/serviceworker.js';
+                var scope = (basePathMeta ? (basePathMeta + '/') : '/');
 
-                console.log('🔄 [Layout] Registering service worker from:', swPath);
-
-                // Deteksi scope berdasarkan path aplikasi
-                var basePath = swPath.substring(0, swPath.lastIndexOf('/') + 1);
-                var scope = basePath || '/';
-
-                console.log('📍 [Layout] Detected base path:', basePath);
-                console.log('📍 [Layout] Using scope:', scope);
-
-                navigator.serviceWorker.register(swPath, {
-                    scope: scope
-                }).then(function(registration) {
-                    console.log('✅ [Layout] Service Worker registered:', registration.scope);
+                navigator.serviceWorker.register(swPath, { scope: scope })
+                .then(function(registration) {
+                    // ok
                 }).catch(function(error) {
-                    console.error('❌ [Layout] Service Worker registration failed:', error);
+                    // silent fail in UI, but useful for debugging
+                    console.error('Service Worker registration failed:', error);
                 });
             });
         }

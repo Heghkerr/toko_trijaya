@@ -98,17 +98,50 @@
                     @endforeach
 
                     <li><hr class="dropdown-divider"></li>
+                    <li><h6 class="dropdown-header">Status</h6></li>
+                    <li>
+                        <a class="dropdown-item {{ request('status') == 'unpaid' ? 'active' : '' }}"
+                        href="{{ request()->fullUrlWithQuery(['status' => 'unpaid']) }}">
+                            <i class="bi bi-clock text-warning"></i> Belum Bayar
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item {{ request('status') == 'paid' ? 'active' : '' }}"
+                        href="{{ request()->fullUrlWithQuery(['status' => 'paid']) }}">
+                            <i class="bi bi-check-circle text-success"></i> Sudah Bayar
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item {{ request('status') == 'sent' ? 'active' : '' }}"
+                        href="{{ request()->fullUrlWithQuery(['status' => 'sent']) }}">
+                            <i class="bi bi-truck text-info"></i> Dikirim
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item {{ request('status') == 'finished' ? 'active' : '' }}"
+                        href="{{ request()->fullUrlWithQuery(['status' => 'finished']) }}">
+                            <i class="bi bi-check-all text-primary"></i> Selesai
+                        </a>
+                    </li>
+
+                    <li><hr class="dropdown-divider"></li>
                     <li><h6 class="dropdown-header">Metode Pembayaran</h6></li>
                     <li>
                         <a class="dropdown-item {{ request('payment_method') == 'cash' ? 'active' : '' }}"
                         href="{{ request()->fullUrlWithQuery(['payment_method' => 'cash']) }}">
-                            Cash
+                            <i class="bi bi-cash text-success"></i> Cash
                         </a>
                     </li>
                     <li>
                         <a class="dropdown-item {{ request('payment_method') == 'card' ? 'active' : '' }}"
                         href="{{ request()->fullUrlWithQuery(['payment_method' => 'card']) }}">
-                            Card
+                            <i class="bi bi-credit-card text-primary"></i> Card
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item {{ request('payment_method') == 'qris' ? 'active' : '' }}"
+                        href="{{ request()->fullUrlWithQuery(['payment_method' => 'qris']) }}">
+                            <i class="bi bi-qr-code text-info"></i> QRIS
                         </a>
                     </li>
                 </ul>
@@ -173,56 +206,118 @@
                             <td>Rp {{ number_format($transaction->total_amount, 0, ',', '.') }}</td>
                             <td>Rp {{ number_format($transaction->discount, 0, ',', '.') }}</td>
                             <td class="text-center">
-                                <span class="badge
-                                    {{ $transaction->payment_method == 'cash' ? 'bg-success' :
-                                       ($transaction->payment_method == 'card' ? 'bg-primary' : 'bg-secondary') }}">
-                                    {{ strtoupper($transaction->payment_method) }}
-                                </span>
+                                @if($transaction->payment_method == 'cash')
+                                    <span class="badge bg-success"><i class="bi bi-cash"></i> Cash</span>
+                                @elseif($transaction->payment_method == 'card')
+                                    <span class="badge bg-primary"><i class="bi bi-credit-card"></i> Card</span>
+                                @elseif($transaction->payment_method == 'qris')
+                                    <span class="badge bg-info"><i class="bi bi-qr-code"></i> QRIS</span>
+                                @else
+                                    <span class="badge bg-secondary">{{ ucfirst($transaction->payment_method) }}</span>
+                                @endif
                             </td>
                             <td class="text-center">
                                 @if($transaction->status === 'unpaid')
-                                    <span class="badge bg-warning text-dark">UNPAID</span>
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="bi bi-clock"></i> BELUM BAYAR
+                                    </span>
                                 @elseif($transaction->status === 'paid')
-                                    <span class="badge bg-success">PAID</span>
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle"></i>SUDAH  BAYAR
+                                    </span>
+                                @elseif($transaction->status === 'sent')
+                                    <span class="badge bg-info">
+                                        <i class="bi bi-truck"></i> KIRIM
+                                    </span>
+                                @elseif($transaction->status === 'finished')
+                                    <span class="badge bg-primary">
+                                        <i class="bi bi-check-all"></i> SELESAI
+                                    </span>
                                 @else
-                                    <span class="badge bg-danger">REFUNDED</span>
+                                    <span class="badge bg-danger">{{ strtoupper($transaction->status) }}</span>
                                 @endif
                             </td>
                             <td class="text-center">
 
+                                    {{-- Detail Button (Always) --}}
+                                    <a href="{{ route('transactions.show', $transaction->id) }}" class="btn btn-info btn-sm" title="Detail">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+
+                                    {{-- Action Buttons Based on Status --}}
                                     @if($transaction->status === 'unpaid')
-                                        <a href="{{ route('transactions.show', $transaction->id) }}" class="btn btn-info btn-sm">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
-                                        <form action="{{ route('transactions.markPaid', $transaction->id) }}" method="POST" style="display:inline;"
-                                            onsubmit="return confirm('Apakah kamu yakin transaksi ini sudah dibayar?')" target="_blank">
+                                        {{-- Button Bayar --}}
+                                        <form action="{{ route('transactions.markPaid', $transaction->id) }}" method="POST" class="d-inline">
                                             @csrf
                                             @method('PUT')
-                                            <button type="submit" class="btn btn-success btn-sm">
-                                                <i class="bi bi-cash-coin me-1"></i> Paid
+                                            <button type="submit" class="btn btn-success btn-sm" title="Bayar"
+                                                onclick="return confirm('Tandai sudah dibayar?')">
+                                                <i class="bi bi-check-circle"></i>
                                             </button>
                                         </form>
-                                         <form action="{{ route('transactions.destroy', $transaction->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Yakin ingin menghapus transaksi ini?')">
+
+                                        {{-- Button Delete --}}
+                                        <form action="{{ route('transactions.destroy', $transaction->id) }}" method="POST" class="d-inline">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn btn-danger btn-sm">
+                                            <button type="submit" class="btn btn-danger btn-sm" title="Hapus"
+                                                onclick="return confirm('Yakin hapus?')">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
-                                    @else
-                                        <a href="{{ route('transactions.show', $transaction->id) }}" style="display:inline;" class="btn btn-info btn-sm">
-                                            <i class="bi bi-eye"></i>
+
+                                    @elseif($transaction->status === 'paid')
+                                        {{-- Button Kirim (online) atau badge Selesai (offline) --}}
+                                        @php
+                                            $isOnline = $transaction->customer && str_contains($transaction->customer->name, '(WhatsApp)');
+                                        @endphp
+
+                                        @if($isOnline)
+                                            <form action="{{ route('transactions.markSent', $transaction->id) }}" method="POST" class="d-inline">
+                                                @csrf
+                                                @method('PUT')
+                                                <button type="submit" class="btn btn-info btn-sm" title="Kirim"
+                                                    onclick="return confirm('Tandai sudah dikirim?')">
+                                                    <i class="bi bi-truck"></i>
+                                                </button>
+                                            </form>
+                                        @else
+                                            <span class="text-success"><i class="bi bi-check-all"></i> Done</span>
+                                        @endif
+
+                                        {{-- Button Refund --}}
+                                        <a href="{{ route('transactions.refund', $transaction->id) }}"
+                                           class="btn btn-warning btn-sm" title="Refund">
+                                            <i class="bi bi-arrow-return-left"></i>
                                         </a>
-                                        <a href="{{ route('transactions.refund', $transaction->id) }}" style="display:inline;" class="btn btn-warning btn-sm">
-                                            <i class="bi bi-arrow-return-left"></i> Refund
-                                        </a>
-                                        <form action="{{ route('transactions.destroy', $transaction->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Yakin ingin menghapus transaksi ini?')">
+
+                                    @elseif($transaction->status === 'sent')
+                                        {{-- Button Selesai --}}
+                                        <form action="{{ route('transactions.markFinished', $transaction->id) }}" method="POST" class="d-inline">
                                             @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-danger btn-sm">
-                                                <i class="bi bi-trash"></i>
+                                            @method('PUT')
+                                            <button type="submit" class="btn btn-primary btn-sm" title="Selesai"
+                                                onclick="return confirm('Tandai selesai?')">
+                                                <i class="bi bi-check-all"></i>
                                             </button>
                                         </form>
+
+                                        {{-- Button Refund --}}
+                                        <a href="{{ route('transactions.refund', $transaction->id) }}"
+                                           class="btn btn-warning btn-sm" title="Refund">
+                                            <i class="bi bi-arrow-return-left"></i>
+                                        </a>
+
+                                    @elseif($transaction->status === 'finished')
+                                        {{-- Finished - No Action --}}
+                                        <span class="text-success"><i class="bi bi-check-all"></i> Done</span>
+
+                                        {{-- Button Refund --}}
+                                        <a href="{{ route('transactions.refund', $transaction->id) }}"
+                                           class="btn btn-warning btn-sm" title="Refund">
+                                            <i class="bi bi-arrow-return-left"></i>
+                                        </a>
+
                                     @endif
                             </td>
                         </tr>
@@ -280,6 +375,131 @@
     [data-bs-toggle="tooltip"] {
         cursor: pointer;
     }
+
+    /* Mobile Responsive Improvements */
+    @media (max-width: 768px) {
+        .card-body {
+            padding: 0.75rem;
+        }
+
+        .card-header {
+            padding: 0.75rem;
+        }
+
+        .card-header h6 {
+            font-size: 0.9rem;
+        }
+
+        /* Button group improvements */
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+        }
+
+        .btn-group .btn {
+            flex: 1 1 auto;
+            min-width: max-content;
+        }
+
+        .btn-outline-primary,
+        .btn-outline-success,
+        .btn-outline-info,
+        .btn-outline-secondary {
+            padding: 0.4rem 0.6rem;
+            font-size: 0.75rem;
+        }
+
+        /* Alert improvements */
+        .alert {
+            padding: 0.6rem;
+            font-size: 0.85rem;
+        }
+
+        .alert strong {
+            font-size: 0.9rem;
+        }
+
+        /* Table improvements */
+        .table {
+            font-size: 0.75rem;
+        }
+
+        .table th,
+        .table td {
+            padding: 0.4rem 0.3rem;
+        }
+
+        /* Badge improvements */
+        .badge {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.4rem;
+        }
+
+        /* Dropdown menu */
+        .dropdown-menu {
+            font-size: 0.8rem;
+        }
+
+        .dropdown-item {
+            padding: 0.4rem 0.8rem;
+        }
+
+        /* Modal */
+        .modal-body {
+            padding: 0.75rem;
+        }
+
+        /* Pagination */
+        .pagination {
+            font-size: 0.8rem;
+        }
+
+        /* Filter section */
+        .d-flex.justify-content-between {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .d-flex.align-items-center {
+            flex-wrap: wrap;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .card-header h6 {
+            font-size: 0.8rem;
+        }
+
+        .table {
+            font-size: 0.7rem;
+        }
+
+        .table th,
+        .table td {
+            padding: 0.3rem 0.2rem;
+        }
+
+        .btn-sm {
+            padding: 0.2rem 0.4rem;
+            font-size: 0.7rem;
+        }
+
+        /* Stack the action buttons vertically on very small screens */
+        .btn-group {
+            flex-direction: column;
+        }
+
+        .btn-group .btn {
+            width: 100%;
+        }
+
+        /* Hide some table columns on very small screens */
+        .table th:nth-child(3),
+        .table td:nth-child(3) {
+            font-size: 0.65rem;
+        }
+    }
 </style>
 @endsection
 
@@ -291,6 +511,11 @@
         var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
         });
+
+        // Buka receipt di tab baru jika ada session
+        @if(session('open_receipt'))
+            window.open('{{ session('open_receipt') }}', '_blank');
+        @endif
     });
 </script>
 @endsection
